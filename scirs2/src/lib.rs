@@ -32,29 +32,30 @@
 pub use scirs2_core::{constants, error, utils};
 
 // Optional modules (enabled via features)
-#[cfg(feature = "linalg")]
-pub use scirs2_linalg as linalg;
+// FIXME: Uncomment these in future releases as modules are published
+// #[cfg(feature = "linalg")]
+// pub use scirs2_linalg as linalg;
 
-#[cfg(feature = "integrate")]
-pub use scirs2_integrate as integrate;
+// #[cfg(feature = "integrate")]
+// pub use scirs2_integrate as integrate;
 
-#[cfg(feature = "interpolate")]
-pub use scirs2_interpolate as interpolate;
+// #[cfg(feature = "interpolate")]
+// pub use scirs2_interpolate as interpolate;
 
-#[cfg(feature = "optimize")]
-pub use scirs2_optimize as optimize;
+// #[cfg(feature = "optimize")]
+// pub use scirs2_optimize as optimize;
 
-#[cfg(feature = "fft")]
-pub use scirs2_fft as fft;
+// #[cfg(feature = "fft")]
+// pub use scirs2_fft as fft;
 
-#[cfg(feature = "stats")]
-pub use scirs2_stats as stats;
+// #[cfg(feature = "stats")]
+// pub use scirs2_stats as stats;
 
 #[cfg(feature = "special")]
 pub use scirs2_special as special;
 
-#[cfg(feature = "signal")]
-pub use scirs2_signal as signal;
+// #[cfg(feature = "signal")]
+// pub use scirs2_signal as signal;
 
 #[cfg(feature = "sparse")]
 pub use scirs2_sparse as sparse;
@@ -62,43 +63,46 @@ pub use scirs2_sparse as sparse;
 #[cfg(feature = "spatial")]
 pub use scirs2_spatial as spatial;
 
-// Optional advanced modules
-#[cfg(feature = "cluster")]
-pub use scirs2_cluster as cluster;
+// Optional advanced modules - uncomment in future releases
+// #[cfg(feature = "cluster")]
+// pub use scirs2_cluster as cluster;
 
-#[cfg(feature = "ndimage")]
-pub use scirs2_ndimage as ndimage;
+// #[cfg(feature = "ndimage")]
+// pub use scirs2_ndimage as ndimage;
 
-#[cfg(feature = "io")]
-pub use scirs2_io as io;
+// #[cfg(feature = "io")]
+// pub use scirs2_io as io;
 
-#[cfg(feature = "datasets")]
-pub use scirs2_datasets as datasets;
+// #[cfg(feature = "datasets")]
+// pub use scirs2_datasets as datasets;
 
-// Optional AI/ML modules
-#[cfg(feature = "neural")]
-pub use scirs2_neural as neural;
+// Optional AI/ML modules - uncomment in future releases
+// #[cfg(feature = "neural")]
+// pub use scirs2_neural as neural;
 
-#[cfg(feature = "optim")]
-pub use scirs2_optim as optim;
+// #[cfg(feature = "optim")]
+// pub use scirs2_optim as optim;
 
-#[cfg(feature = "graph")]
-pub use scirs2_graph as graph;
+// #[cfg(feature = "graph")]
+// pub use scirs2_graph as graph;
 
-#[cfg(feature = "transform")]
-pub use scirs2_transform as transform;
+// #[cfg(feature = "transform")]
+// pub use scirs2_transform as transform;
 
-#[cfg(feature = "metrics")]
-pub use scirs2_metrics as metrics;
+// #[cfg(feature = "metrics")]
+// pub use scirs2_metrics as metrics;
 
 #[cfg(feature = "text")]
 pub use scirs2_text as text;
 
-#[cfg(feature = "vision")]
-pub use scirs2_vision as vision;
+// #[cfg(feature = "vision")]
+// pub use scirs2_vision as vision;
 
-#[cfg(feature = "series")]
-pub use scirs2_series as series;
+// #[cfg(feature = "series")]
+// pub use scirs2_series as series;
+
+#[cfg(feature = "autograd")]
+pub use scirs2_autograd as autograd;
 
 // Public API
 /// SciRS2 version information
