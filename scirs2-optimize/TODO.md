@@ -11,16 +11,21 @@ This module provides optimization algorithms similar to SciPy's optimize module.
 - [x] Least squares minimization (Levenberg-Marquardt, Trust Region Reflective)
 - [x] Root finding (Powell, Broyden's methods, Anderson, Krylov)
 - [x] Integration with existing optimization libraries (argmin)
+- [x] Bounds support for all unconstrained minimization methods:
+  - Powell's method with boundary-respecting line search
+  - Nelder-Mead with boundary projection for simplex operations
+  - BFGS with projected gradients and modified gradient calculations at boundaries
+  - Conjugate Gradient with projected search directions
 
 ## Future Tasks
 
-- [ ] Fix any warnings in the current implementation
+- [x] Fix any warnings in the current implementation
+- [x] Support for bounds in unconstrained optimization algorithms
 - [ ] Add more algorithm options and variants
 - [ ] Improve convergence criteria and control
 - [ ] Add more examples and test cases
 - [ ] Enhance documentation with theoretical background
 - [ ] Performance optimizations for high-dimensional problems
-- [ ] Support for bounds and constraints in more algorithms
 - [ ] Implement global optimization methods
 - [ ] Add visualization tools for optimization process
 - [ ] Improve error handling and diagnostics
