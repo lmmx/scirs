@@ -34,7 +34,9 @@
 //!
 //! The following methods support bounds constraints:
 //! - Powell
-//! - (More methods will be added in future updates)
+//! - Nelder-Mead
+//! - BFGS
+//! - CG (Conjugate Gradient)
 //!
 //! ## Examples
 //!

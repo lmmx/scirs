@@ -386,7 +386,7 @@ where
     }
 }
 
-/// Implements the Nelder-Mead simplex algorithm
+/// Implements the Nelder-Mead simplex algorithm with optional bounds support
 fn minimize_nelder_mead<F, S>(
     func: F,
     x0: &ArrayBase<S, Ix1>,
@@ -401,6 +401,9 @@ where
     let gamma = 2.0; // Expansion parameter
     let rho = 0.5; // Contraction parameter
     let sigma = 0.5; // Shrink parameter
+    
+    // Get bounds from options
+    let bounds = options.bounds.as_ref();
 
     // Get the dimension of the problem
     let n = x0.len();
@@ -410,13 +413,25 @@ where
 
     // Set the tolerance
     let ftol = options.ftol.unwrap_or(1e-8);
+    
+    // Create a function wrapper that respects bounds
+    let bounded_func = |x: &[f64]| {
+        if let Some(bounds) = bounds {
+            if !bounds.is_feasible(x) {
+                // If the point is outside bounds, return a high value
+                // to push the optimization back into the feasible region
+                return f64::MAX;
+            }
+        }
+        func(x)
+    };
 
     // Initialize the simplex
     let mut simplex = Vec::with_capacity(n + 1);
     let x0_vec = x0.to_owned();
-    simplex.push((x0_vec.clone(), func(x0_vec.as_slice().unwrap())));
+    simplex.push((x0_vec.clone(), bounded_func(x0_vec.as_slice().unwrap())));
 
-    // Create the initial simplex
+    // Create the initial simplex, ensuring all points are within bounds
     for i in 0..n {
         let mut xi = x0.to_owned();
         if xi[i] != 0.0 {
@@ -424,8 +439,14 @@ where
         } else {
             xi[i] = 0.00025;
         }
+        
+        // Project the point onto bounds if needed
+        if let Some(bounds) = bounds {
+            let xi_slice = xi.as_slice_mut().unwrap();
+            bounds.project(xi_slice);
+        }
 
-        simplex.push((xi.clone(), func(xi.as_slice().unwrap())));
+        simplex.push((xi.clone(), bounded_func(xi.as_slice().unwrap())));
     }
 
     let mut nfev = n + 1;
@@ -451,14 +472,28 @@ where
         xc = &xc / n as f64;
 
         // Reflection: reflect the worst point through the centroid
-        let xr: Array1<f64> = &xc + alpha * (&xc - &simplex[n].0);
-        let fxr = func(xr.as_slice().unwrap());
+        let mut xr: Array1<f64> = &xc + alpha * (&xc - &simplex[n].0);
+        
+        // Project the reflected point onto bounds if needed
+        if let Some(bounds) = bounds {
+            let xr_slice = xr.as_slice_mut().unwrap();
+            bounds.project(xr_slice);
+        }
+        
+        let fxr = bounded_func(xr.as_slice().unwrap());
         nfev += 1;
 
         if fxr < simplex[0].1 {
             // If the reflected point is the best so far, try expansion
-            let xe: Array1<f64> = &xc + gamma * (&xr - &xc);
-            let fxe = func(xe.as_slice().unwrap());
+            let mut xe: Array1<f64> = &xc + gamma * (&xr - &xc);
+            
+            // Project the expanded point onto bounds if needed
+            if let Some(bounds) = bounds {
+                let xe_slice = xe.as_slice_mut().unwrap();
+                bounds.project(xe_slice);
+            }
+            
+            let fxe = bounded_func(xe.as_slice().unwrap());
             nfev += 1;
 
             if fxe < fxr {
@@ -475,15 +510,21 @@ where
             simplex[n] = (xr, fxr);
         } else {
             // Otherwise, try contraction
-            let xc_contract: Array1<f64> = if fxr < simplex[n].1 {
+            let mut xc_contract: Array1<f64> = if fxr < simplex[n].1 {
                 // Outside contraction
                 &xc + rho * (&xr - &xc)
             } else {
                 // Inside contraction
                 &xc - rho * (&xc - &simplex[n].0)
             };
+            
+            // Project the contracted point onto bounds if needed
+            if let Some(bounds) = bounds {
+                let xc_contract_slice = xc_contract.as_slice_mut().unwrap();
+                bounds.project(xc_contract_slice);
+            }
 
-            let fxc_contract = func(xc_contract.as_slice().unwrap());
+            let fxc_contract = bounded_func(xc_contract.as_slice().unwrap());
             nfev += 1;
 
             if fxc_contract < simplex[n].1 {
@@ -493,8 +534,16 @@ where
             } else {
                 // If all else fails, shrink the simplex towards the best point
                 for i in 1..=n {
-                    simplex[i].0 = &simplex[0].0 + sigma * (&simplex[i].0 - &simplex[0].0);
-                    simplex[i].1 = func(simplex[i].0.as_slice().unwrap());
+                    let mut new_point = &simplex[0].0 + sigma * (&simplex[i].0 - &simplex[0].0);
+                    
+                    // Project the shrunk point onto bounds if needed
+                    if let Some(bounds) = bounds {
+                        let new_point_slice = new_point.as_slice_mut().unwrap();
+                        bounds.project(new_point_slice);
+                    }
+                    
+                    simplex[i].0 = new_point;
+                    simplex[i].1 = bounded_func(simplex[i].0.as_slice().unwrap());
                     nfev += 1;
                 }
             }
@@ -508,11 +557,21 @@ where
 
     // Get the best point and its function value
     let (x_best, f_best) = simplex[0].clone();
+    
+    // If f_best is MAX, the optimization failed to find a feasible point
+    if f_best == f64::MAX {
+        return Err(OptimizeError::ValueError(
+            "Failed to find a feasible point within bounds".to_string(),
+        ));
+    }
+    
+    // Use original function for final value
+    let final_value = func(x_best.as_slice().unwrap());
 
     // Create the result
     let mut result = OptimizeResults::default();
     result.x = x_best;
-    result.fun = f_best;
+    result.fun = final_value;
     result.nfev = nfev;
     result.nit = iter;
     result.success = iter < maxiter;
@@ -525,7 +584,7 @@ where
     Ok(result)
 }
 
-/// Implements the BFGS algorithm
+/// Implements the BFGS algorithm with optional bounds support
 fn minimize_bfgs<F, S>(
     func: F,
     x0: &ArrayBase<S, Ix1>,
@@ -540,16 +599,48 @@ where
     let gtol = options.gtol.unwrap_or(1e-8);
     let maxiter = options.maxiter.unwrap_or(100 * x0.len());
     let eps = options.eps.unwrap_or(1e-8);
+    let bounds = options.bounds.as_ref();
 
     // Initialize variables
     let n = x0.len();
     let mut x = x0.to_owned();
+    
+    // Ensure initial point is within bounds
+    if let Some(bounds) = bounds {
+        let x_slice = x.as_slice_mut().unwrap();
+        bounds.project(x_slice);
+    }
+    
     let mut f = func(x.as_slice().unwrap());
 
     // Calculate initial gradient using finite differences
     let mut g = Array1::zeros(n);
     for i in 0..n {
         let mut x_h = x.clone();
+        
+        // For bounded variables, use one-sided differences at boundaries
+        if let Some(bounds) = bounds {
+            if let Some(ub) = bounds.ub[i] {
+                if x[i] >= ub - eps {
+                    // Near upper bound, use backward difference
+                    x_h[i] = x[i] - eps;
+                    let f_h = func(x_h.as_slice().unwrap());
+                    g[i] = (f - f_h) / eps;
+                    continue;
+                }
+            }
+            if let Some(lb) = bounds.lb[i] {
+                if x[i] <= lb + eps {
+                    // Near lower bound, use forward difference
+                    x_h[i] = x[i] + eps;
+                    let f_h = func(x_h.as_slice().unwrap());
+                    g[i] = (f_h - f) / eps;
+                    continue;
+                }
+            }
+        }
+        
+        // Otherwise use central difference
         x_h[i] += eps;
         let f_h = func(x_h.as_slice().unwrap());
         g[i] = (f_h - f) / eps;
@@ -570,23 +661,94 @@ where
         }
 
         // Compute search direction
-        let p = -&h_inv.dot(&g);
+        let mut p = -&h_inv.dot(&g);
+        
+        // Get bounds for the line search parameter
+        let (a_min, a_max) = if let Some(b) = bounds {
+            line_bounds(&x, &p, Some(b))
+        } else {
+            (f64::NEG_INFINITY, f64::INFINITY)
+        };
+        
+        // If bounds fully constrain the search direction, adjust it
+        if a_max <= 0.0 || a_min >= 0.0 || (a_max - a_min).abs() < 1e-10 {
+            // We're at a bound constraint and can't move in the negative gradient direction
+            // Try a projected gradient approach
+            p = Array1::zeros(n);
+            let x_slice = x.as_slice().unwrap();
+            
+            for i in 0..n {
+                let mut can_decrease = true;
+                let mut can_increase = true;
+                
+                if let Some(bounds) = bounds {
+                    if let Some(lb) = bounds.lb[i] {
+                        if x_slice[i] <= lb + eps {
+                            can_decrease = false;
+                        }
+                    }
+                    if let Some(ub) = bounds.ub[i] {
+                        if x_slice[i] >= ub - eps {
+                            can_increase = false;
+                        }
+                    }
+                }
+                
+                if (g[i] > 0.0 && can_decrease) || (g[i] < 0.0 && can_increase) {
+                    p[i] = -g[i];
+                }
+            }
+            
+            // If no movement is possible, we're at a constrained optimum
+            if p.iter().all(|&pi| pi.abs() < 1e-10) {
+                break;
+            }
+            
+            // Recalculate bounds for the new search direction
+            if let Some(b) = bounds {
+                let (_, max) = line_bounds(&x, &p, Some(b));
+                if max <= 0.0 {
+                    // Can't move in this direction either, at constrained optimum
+                    break;
+                }
+            }
+        }
 
-        // Line search using backtracking
-        let mut alpha = 1.0;
+        // Line search using backtracking, respecting bounds
+        let mut alpha = if a_max < 1.0 { a_max * 0.99 } else { 1.0 };
         let c1 = 1e-4; // Sufficient decrease parameter
         let rho = 0.5; // Backtracking parameter
 
-        // Initial step
+        // Initial step, ensuring it's within bounds
         let mut x_new = &x + &(&p * alpha);
+        
+        // Project onto bounds (if needed, should be a no-op if we calculated bounds correctly)
+        if let Some(bounds) = bounds {
+            let x_new_slice = x_new.as_slice_mut().unwrap();
+            bounds.project(x_new_slice);
+        }
+        
         let mut f_new = func(x_new.as_slice().unwrap());
         nfev += 1;
 
-        // Backtracking until Armijo condition is satisfied
+        // Backtracking until Armijo condition is satisfied or we hit the bound
         let g_dot_p = g.dot(&p);
-        while f_new > f + c1 * alpha * g_dot_p {
+        while f_new > f + c1 * alpha * g_dot_p && alpha > a_min {
             alpha *= rho;
+            
+            // Ensure alpha is at least a_min
+            if alpha < a_min {
+                alpha = a_min;
+            }
+            
             x_new = &x + &(&p * alpha);
+            
+            // Project onto bounds (if needed)
+            if let Some(bounds) = bounds {
+                let x_new_slice = x_new.as_slice_mut().unwrap();
+                bounds.project(x_new_slice);
+            }
+            
             f_new = func(x_new.as_slice().unwrap());
             nfev += 1;
 
@@ -598,11 +760,44 @@ where
 
         // Compute step and gradient difference
         let s = &x_new - &x;
+        
+        // If the step is very small, we may be at a constrained optimum
+        if s.iter().all(|&si| si.abs() < 1e-10) {
+            x = x_new;
+            f = f_new;
+            break;
+        }
 
-        // Calculate new gradient
+        // Calculate new gradient, using appropriate finite differences at boundaries
         let mut g_new = Array1::zeros(n);
         for i in 0..n {
             let mut x_h = x_new.clone();
+            
+            // For bounded variables, use one-sided differences at boundaries
+            if let Some(bounds) = bounds {
+                if let Some(ub) = bounds.ub[i] {
+                    if x_new[i] >= ub - eps {
+                        // Near upper bound, use backward difference
+                        x_h[i] = x_new[i] - eps;
+                        let f_h = func(x_h.as_slice().unwrap());
+                        g_new[i] = (f_new - f_h) / eps;
+                        nfev += 1;
+                        continue;
+                    }
+                }
+                if let Some(lb) = bounds.lb[i] {
+                    if x_new[i] <= lb + eps {
+                        // Near lower bound, use forward difference
+                        x_h[i] = x_new[i] + eps;
+                        let f_h = func(x_h.as_slice().unwrap());
+                        g_new[i] = (f_h - f_new) / eps;
+                        nfev += 1;
+                        continue;
+                    }
+                }
+            }
+            
+            // Otherwise use central difference
             x_h[i] += eps;
             let f_h = func(x_h.as_slice().unwrap());
             g_new[i] = (f_h - f_new) / eps;
@@ -621,8 +816,9 @@ where
         }
 
         // Update inverse Hessian approximation using BFGS formula
-        let rho_bfgs = 1.0 / y.dot(&s);
-        if rho_bfgs.is_finite() && rho_bfgs > 0.0 {
+        let s_dot_y = s.dot(&y);
+        if s_dot_y > 1e-10 {
+            let rho_bfgs = 1.0 / s_dot_y;
             let i_mat = Array2::eye(n);
             let y_row = y.clone().insert_axis(Axis(0));
             let s_col = s.clone().insert_axis(Axis(1));
@@ -644,6 +840,20 @@ where
         g = g_new;
 
         iter += 1;
+    }
+
+    // Final check for bounds
+    if let Some(bounds) = bounds {
+        // This should never happen if all steps respect bounds,
+        // but we include it as a safeguard
+        let x_slice = x.as_slice_mut().unwrap();
+        bounds.project(x_slice);
+        
+        // If we modified x, re-evaluate f
+        if !bounds.is_feasible(x.as_slice().unwrap()) {
+            f = func(x.as_slice().unwrap());
+            nfev += 1;
+        }
     }
 
     // Create and return result
@@ -940,7 +1150,7 @@ where
     (alpha, f_min)
 }
 
-/// Implements the Conjugate Gradient method for unconstrained optimization
+/// Implements the Conjugate Gradient method for unconstrained optimization with optional bounds support
 fn minimize_conjugate_gradient<F, S>(
     func: F,
     x0: &ArrayBase<S, Ix1>,
@@ -955,23 +1165,73 @@ where
     let gtol = options.gtol.unwrap_or(1e-8);
     let maxiter = options.maxiter.unwrap_or(100 * x0.len());
     let eps = options.eps.unwrap_or(1e-8);
+    let bounds = options.bounds.as_ref();
 
     // Initialize variables
     let n = x0.len();
     let mut x = x0.to_owned();
+    
+    // Ensure initial point is within bounds
+    if let Some(bounds) = bounds {
+        let x_slice = x.as_slice_mut().unwrap();
+        bounds.project(x_slice);
+    }
+    
     let mut f = func(x.as_slice().unwrap());
 
-    // Calculate initial gradient using finite differences
+    // Calculate initial gradient using finite differences, with adjustments for bounds
     let mut g = Array1::zeros(n);
     for i in 0..n {
         let mut x_h = x.clone();
+        
+        // For bounded variables, use one-sided differences at boundaries
+        if let Some(bounds) = bounds {
+            if let Some(ub) = bounds.ub[i] {
+                if x[i] >= ub - eps {
+                    // Near upper bound, use backward difference
+                    x_h[i] = x[i] - eps;
+                    let f_h = func(x_h.as_slice().unwrap());
+                    g[i] = (f - f_h) / eps;
+                    continue;
+                }
+            }
+            if let Some(lb) = bounds.lb[i] {
+                if x[i] <= lb + eps {
+                    // Near lower bound, use forward difference
+                    x_h[i] = x[i] + eps;
+                    let f_h = func(x_h.as_slice().unwrap());
+                    g[i] = (f_h - f) / eps;
+                    continue;
+                }
+            }
+        }
+        
+        // Otherwise use central difference
         x_h[i] += eps;
         let f_h = func(x_h.as_slice().unwrap());
         g[i] = (f_h - f) / eps;
     }
 
-    // Initialize search direction as steepest descent
+    // Initialize search direction as projected steepest descent
     let mut p = -g.clone();
+    
+    // Project the search direction to respect bounds if at boundary
+    if let Some(bounds) = bounds {
+        for i in 0..n {
+            // For dimensions at the bound, zero out search direction if it would go outside bounds
+            let x_slice = x.as_slice().unwrap();
+            if let Some(lb) = bounds.lb[i] {
+                if x_slice[i] <= lb && p[i] < 0.0 {
+                    p[i] = 0.0;
+                }
+            }
+            if let Some(ub) = bounds.ub[i] {
+                if x_slice[i] >= ub && p[i] > 0.0 {
+                    p[i] = 0.0;
+                }
+            }
+        }
+    }
 
     // Counters
     let mut iter = 0;
@@ -982,17 +1242,64 @@ where
         if g.iter().all(|&gi| gi.abs() < gtol) {
             break;
         }
+        
+        // If search direction is zero (completely constrained),
+        // we're at a constrained optimum
+        if p.iter().all(|&pi| pi.abs() < 1e-10) {
+            break;
+        }
 
-        // Line search along the search direction
-        let (alpha, f_new) = line_search_cg(&func, &x, &p, f, &mut nfev);
+        // Line search along the search direction, respecting bounds
+        let (alpha, f_new) = line_search_cg(&func, &x, &p, f, &mut nfev, bounds);
 
         // Update position
-        let x_new = &x + &(&p * alpha);
+        let mut x_new = &x + &(&p * alpha);
+        
+        // Ensure we're within bounds (should be a no-op if line_search_cg respected bounds)
+        if let Some(bounds) = bounds {
+            let x_new_slice = x_new.as_slice_mut().unwrap();
+            bounds.project(x_new_slice);
+        }
 
-        // Compute new gradient
+        // Check if the step actually moved the point
+        let step_size = (&x_new - &x).iter().map(|&s| s * s).sum::<f64>().sqrt();
+        if step_size < 1e-10 {
+            // We're at a boundary constraint and can't move further
+            x = x_new;
+            f = f_new;
+            break;
+        }
+
+        // Compute new gradient with appropriate handling for bounds
         let mut g_new = Array1::zeros(n);
         for i in 0..n {
             let mut x_h = x_new.clone();
+            
+            // For bounded variables, use one-sided differences at boundaries
+            if let Some(bounds) = bounds {
+                if let Some(ub) = bounds.ub[i] {
+                    if x_new[i] >= ub - eps {
+                        // Near upper bound, use backward difference
+                        x_h[i] = x_new[i] - eps;
+                        let f_h = func(x_h.as_slice().unwrap());
+                        g_new[i] = (f_new - f_h) / eps;
+                        nfev += 1;
+                        continue;
+                    }
+                }
+                if let Some(lb) = bounds.lb[i] {
+                    if x_new[i] <= lb + eps {
+                        // Near lower bound, use forward difference
+                        x_h[i] = x_new[i] + eps;
+                        let f_h = func(x_h.as_slice().unwrap());
+                        g_new[i] = (f_h - f_new) / eps;
+                        nfev += 1;
+                        continue;
+                    }
+                }
+            }
+            
+            // Otherwise use central difference
             x_h[i] += eps;
             let f_h = func(x_h.as_slice().unwrap());
             g_new[i] = (f_h - f_new) / eps;
@@ -1008,10 +1315,32 @@ where
         }
 
         // Calculate beta using the Fletcher-Reeves formula
-        let beta_fr = g_new.dot(&g_new) / g.dot(&g);
+        let g_new_norm = g_new.dot(&g_new);
+        let g_norm = g.dot(&g);
+        
+        // If gradient is too small, use steepest descent
+        let beta_fr = if g_norm < 1e-10 { 0.0 } else { g_new_norm / g_norm };
 
         // Update search direction
         p = -&g_new + beta_fr * &p;
+        
+        // Project the search direction to respect bounds
+        if let Some(bounds) = bounds {
+            for i in 0..n {
+                // For dimensions at the bound, zero out search direction if it would go outside bounds
+                let x_new_slice = x_new.as_slice().unwrap();
+                if let Some(lb) = bounds.lb[i] {
+                    if x_new_slice[i] <= lb && p[i] < 0.0 {
+                        p[i] = 0.0;
+                    }
+                }
+                if let Some(ub) = bounds.ub[i] {
+                    if x_new_slice[i] >= ub && p[i] > 0.0 {
+                        p[i] = 0.0;
+                    }
+                }
+            }
+        }
 
         // Update variables for next iteration
         x = x_new;
@@ -1023,6 +1352,38 @@ where
         // Restart direction to steepest descent every n iterations
         if iter % n == 0 {
             p = -g.clone();
+            
+            // Project the restarted direction to respect bounds
+            if let Some(bounds) = bounds {
+                for i in 0..n {
+                    // For dimensions at the bound, zero out search direction if it would go outside bounds
+                    let x_slice = x.as_slice().unwrap();
+                    if let Some(lb) = bounds.lb[i] {
+                        if x_slice[i] <= lb && p[i] < 0.0 {
+                            p[i] = 0.0;
+                        }
+                    }
+                    if let Some(ub) = bounds.ub[i] {
+                        if x_slice[i] >= ub && p[i] > 0.0 {
+                            p[i] = 0.0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Final check for bounds
+    if let Some(bounds) = bounds {
+        // This should never happen if all steps respected bounds,
+        // but we include it as a safeguard
+        let x_slice = x.as_slice_mut().unwrap();
+        bounds.project(x_slice);
+        
+        // If we modified x, re-evaluate f
+        if !bounds.is_feasible(x.as_slice().unwrap()) {
+            f = func(x.as_slice().unwrap());
+            nfev += 1;
         }
     }
 
@@ -1044,25 +1405,51 @@ where
     Ok(result)
 }
 
-/// Helper function for line search in Conjugate Gradient method
+/// Helper function for line search in Conjugate Gradient method with optional bounds support
 fn line_search_cg<F>(
     func: F,
     x: &Array1<f64>,
     direction: &Array1<f64>,
     f_x: f64,
     nfev: &mut usize,
+    bounds: Option<&Bounds>,
 ) -> (f64, f64)
 where
     F: Fn(&[f64]) -> f64,
 {
-    // Use a simple backtracking line search
+    // Get bounds on the line search parameter
+    let (a_min, a_max) = if let Some(b) = bounds {
+        line_bounds(x, direction, Some(b))
+    } else {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    };
+
+    // Use a simple backtracking line search with bounds
     let c1 = 1e-4; // Sufficient decrease parameter
     let rho = 0.5; // Backtracking parameter
-    let mut alpha = 1.0;
+    
+    // Start with alpha = min(1.0, a_max) to ensure we're within bounds
+    let mut alpha = if a_max < 1.0 { a_max * 0.99 } else { 1.0 };
+    
+    // If bounds fully constrain movement, return that constrained step
+    if a_max <= 0.0 || a_min >= a_max {
+        alpha = if a_max > 0.0 { a_max } else { 0.0 };
+        let x_new = x + alpha * direction;
+        *nfev += 1;
+        let f_new = func(x_new.as_slice().unwrap());
+        return (alpha, f_new);
+    }
 
     // Function to evaluate a point on the line
     let mut f_line = |alpha: f64| {
-        let x_new = x + alpha * direction;
+        let mut x_new = x + alpha * direction;
+        
+        // Project onto bounds (if needed, should be a no-op if we calculated bounds correctly)
+        if let Some(bounds) = bounds {
+            let x_new_slice = x_new.as_slice_mut().unwrap();
+            bounds.project(x_new_slice);
+        }
+        
         *nfev += 1;
         func(x_new.as_slice().unwrap())
     };
@@ -1070,10 +1457,16 @@ where
     // Initial step
     let mut f_new = f_line(alpha);
 
-    // Backtracking until Armijo condition is satisfied
+    // Backtracking until Armijo condition is satisfied or we hit the lower bound
     let slope = direction.iter().map(|&d| d * d).sum::<f64>();
-    while f_new > f_x - c1 * alpha * slope.abs() {
+    while f_new > f_x - c1 * alpha * slope.abs() && alpha > a_min {
         alpha *= rho;
+        
+        // Ensure alpha is at least a_min
+        if alpha < a_min {
+            alpha = a_min;
+        }
+        
         f_new = f_line(alpha);
 
         // Prevent infinite loops for very small steps
@@ -1106,6 +1499,11 @@ mod tests {
     fn constrained_function(x: &[f64]) -> f64 {
         // This function has a minimum at (-1, -1), but we'll constrain it to the positive quadrant
         (x[0] + 1.0).powi(2) + (x[1] + 1.0).powi(2)
+    }
+    
+    fn simple_quadratic(x: &[f64]) -> f64 {
+        // Simple quadratic function with minimum at origin
+        x[0].powi(2) + x[1].powi(2)
     }
 
     #[test]
@@ -1380,6 +1778,48 @@ mod tests {
         
         // The function value should be 2.0 at [0, 0]
         assert!((result.fun - 2.0).abs() < 1e-3);
+    }
+    
+    #[test]
+    fn test_all_methods_with_bounds() {
+        // Use simple quadratic function with minimum at origin
+        // When constrained to positive half-plane, minimum is at the bounds
+        let x0 = array![2.0, 2.0]; // Starting farther from origin
+        
+        // Create bounds: x >= 0.1, 0.1 <= y <= 1.0
+        let bounds = Bounds::new(&[(Some(0.1), None), (Some(0.1), Some(1.0))]);
+        
+        // Test all methods with bounds
+        let methods = [Method::NelderMead, Method::Powell, Method::BFGS, Method::CG];
+        
+        for method in methods.iter() {
+            let mut options = Options::default();
+            options.bounds = Some(bounds.clone());
+            
+            // Use more lenient tolerance for test stability
+            options.ftol = Some(1e-4);
+            options.gtol = Some(1e-4);
+            options.maxiter = Some(200); // Increase iterations for better convergence
+            
+            let result = minimize(simple_quadratic, &x0.view(), *method, Some(options)).unwrap();
+            
+            // Verify optimization was successful
+            assert!(result.success);
+            
+            // Verify the bounds were respected
+            assert!(result.x[0] >= 0.09, "Method {:?} violated lower bound on x[0]: {}", method, result.x[0]); 
+            assert!(result.x[1] >= 0.09, "Method {:?} violated lower bound on x[1]: {}", method, result.x[1]);
+            assert!(result.x[1] <= 1.01, "Method {:?} violated upper bound on x[1]: {}", method, result.x[1]);
+            
+            // Verify the function value is better than the starting point
+            let start_value = simple_quadratic(x0.as_slice().unwrap());
+            assert!(result.fun < start_value,
+                   "Method {:?} failed: solution value {} not better than starting value {}", 
+                   method, result.fun, start_value);
+                   
+            // Print info for debugging
+            println!("Method {:?} result: x = {:?}, f = {}", method, result.x, result.fun);
+        }
     }
     
     #[test]
