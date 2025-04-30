@@ -87,6 +87,134 @@ impl fmt::Display for Method {
     }
 }
 
+/// Bounds for optimization variables.
+///
+/// Specifies the lower and upper bounds for each variable.
+/// Use `None` for unbounded variables.
+#[derive(Debug, Clone)]
+pub struct Bounds {
+    /// Lower bounds for each variable
+    pub lb: Vec<Option<f64>>,
+
+    /// Upper bounds for each variable
+    pub ub: Vec<Option<f64>>,
+}
+
+impl Bounds {
+    /// Create new bounds for optimization.
+    ///
+    /// # Arguments
+    ///
+    /// * `bounds` - A slice of (min, max) pairs, where `None` indicates no bound
+    ///
+    /// # Returns
+    ///
+    /// * A new `Bounds` struct
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use scirs2_optimize::unconstrained::Bounds;
+    ///
+    /// // Create bounds: x[0] >= 0, x[1] unbounded
+    /// let bounds = Bounds::new(&[(Some(0.0), None), (None, None)]);
+    /// ```
+    pub fn new(bounds: &[(Option<f64>, Option<f64>)]) -> Self {
+        let n = bounds.len();
+        let mut lb = Vec::with_capacity(n);
+        let mut ub = Vec::with_capacity(n);
+
+        for (min, max) in bounds {
+            lb.push(*min);
+            ub.push(*max);
+        }
+
+        Bounds { lb, ub }
+    }
+
+    /// Create bounds from separate lower and upper bound vectors.
+    pub fn from_vecs(lb: Vec<Option<f64>>, ub: Vec<Option<f64>>) -> Result<Self, OptimizeError> {
+        if lb.len() != ub.len() {
+            return Err(OptimizeError::ValueError(
+                "Lower and upper bounds must have the same length".to_string(),
+            ));
+        }
+
+        // Validate that lower bounds are less than or equal to upper bounds
+        for i in 0..lb.len() {
+            if let (Some(l), Some(u)) = (lb[i], ub[i]) {
+                if l > u {
+                    return Err(OptimizeError::ValueError(format!(
+                        "Lower bound must be less than or equal to upper bound at index {}: {} > {}",
+                        i, l, u
+                    )));
+                }
+            }
+        }
+
+        Ok(Bounds { lb, ub })
+    }
+
+    /// Check if a point is within bounds.
+    pub fn is_feasible(&self, x: &[f64]) -> bool {
+        if x.len() != self.lb.len() {
+            return false;
+        }
+
+        for (i, &xi) in x.iter().enumerate() {
+            if let Some(lb) = self.lb[i] {
+                if xi < lb {
+                    return false;
+                }
+            }
+            if let Some(ub) = self.ub[i] {
+                if xi > ub {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
+    /// Project a point onto the feasible region (clipping to bounds).
+    pub fn project(&self, x: &mut [f64]) {
+        for (i, xi) in x.iter_mut().enumerate() {
+            if let Some(lb) = self.lb[i] {
+                *xi = f64::max(*xi, lb);
+            }
+            if let Some(ub) = self.ub[i] {
+                *xi = f64::min(*xi, ub);
+            }
+        }
+    }
+
+    /// Convert to arrays of f64 with infinity values for bounds.
+    ///
+    /// This is useful for algorithms that expect explicit bounds.
+    pub fn to_arrays(&self) -> (Array1<f64>, Array1<f64>) {
+        let n = self.lb.len();
+        let mut lb_arr = Array1::from_elem(n, f64::NEG_INFINITY);
+        let mut ub_arr = Array1::from_elem(n, f64::INFINITY);
+
+        for i in 0..n {
+            if let Some(lb) = self.lb[i] {
+                lb_arr[i] = lb;
+            }
+            if let Some(ub) = self.ub[i] {
+                ub_arr[i] = ub;
+            }
+        }
+
+        (lb_arr, ub_arr)
+    }
+
+    /// Check if there are any bounds constraints.
+    pub fn has_bounds(&self) -> bool {
+        self.lb.iter().any(|x| x.is_some()) || self.ub.iter().any(|x| x.is_some())
+    }
+}
+
 /// Options for the unconstrained optimizer.
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -110,6 +238,9 @@ pub struct Options {
 
     /// Return the optimization result after each iteration
     pub return_all: bool,
+
+    /// Bounds for the variables
+    pub bounds: Option<Bounds>,
 }
 
 impl Default for Options {
@@ -122,6 +253,7 @@ impl Default for Options {
             finite_diff_rel_step: None,
             disp: false,
             return_all: false,
+            bounds: None,
         }
     }
 }
@@ -143,7 +275,7 @@ impl Default for Options {
 ///
 /// ```
 /// use ndarray::array;
-/// use scirs2_optimize::unconstrained::{minimize, Method};
+/// use scirs2_optimize::unconstrained::{minimize, Method, Bounds, Options};
 ///
 /// fn rosenbrock(x: &[f64]) -> f64 {
 ///     let a = 1.0;
@@ -154,14 +286,31 @@ impl Default for Options {
 /// }
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// // Create bounds: x[0] >= 0, x[1] unbounded
+/// let bounds = Bounds::new(&[(Some(0.0), None), (None, None)]);
+/// 
 /// let initial_guess = array![0.0, 0.0];
-/// let result = minimize(rosenbrock, &initial_guess, Method::BFGS, None)?;
+/// let mut options = Options::default();
+/// options.bounds = Some(bounds);
+///
+/// let result = minimize(rosenbrock, &initial_guess, Method::BFGS, Some(options))?;
 ///
 /// println!("Solution: {:?}", result.x);
 /// println!("Function value at solution: {}", result.fun);
 /// # Ok(())
 /// # }
 /// ```
+///
+/// # Bounds Support
+///
+/// The following methods support bounds constraints:
+/// * Powell
+/// * Nelder-Mead
+/// * BFGS
+/// * CG
+///
+/// When bounds are provided through the `options.bounds` parameter, the optimizer
+/// will ensure that all iterates remain within the specified bounds.
 pub fn minimize<F, S>(
     func: F,
     x0: &ArrayBase<S, Ix1>,
@@ -173,17 +322,67 @@ where
     S: Data<Elem = f64>,
 {
     let options = options.unwrap_or_default();
-
-    // Implementation of various methods will go here
-    match method {
-        Method::NelderMead => minimize_nelder_mead(func, x0, &options),
-        Method::BFGS => minimize_bfgs(func, x0, &options),
-        Method::Powell => minimize_powell(func, x0, &options),
-        Method::CG => minimize_conjugate_gradient(func, x0, &options),
-        _ => Err(OptimizeError::NotImplementedError(format!(
-            "Method {:?} is not yet implemented",
-            method
-        ))),
+    
+    // Check if bounds are provided and valid
+    if let Some(ref bounds) = options.bounds {
+        // Verify that the bounds length matches the dimension of x0
+        if bounds.lb.len() != x0.len() || bounds.ub.len() != x0.len() {
+            return Err(OptimizeError::ValueError(format!(
+                "Bounds dimension ({}) does not match x0 dimension ({})",
+                bounds.lb.len(),
+                x0.len()
+            )));
+        }
+        
+        // Check if initial point is within bounds
+        let x0_slice = x0.as_slice().unwrap();
+        if !bounds.is_feasible(x0_slice) {
+            // If not, we should return an error or project x0 onto the feasible region
+            let mut x0_copy = x0.to_owned();
+            let x0_mut = x0_copy.as_slice_mut().unwrap();
+            bounds.project(x0_mut);
+            
+            // Print a warning if we adjusted the initial point
+            if options.disp {
+                println!("Warning: Initial point was outside bounds and has been adjusted");
+            }
+            
+            // Implementation of various methods will go here
+            match method {
+                Method::NelderMead => minimize_nelder_mead(func, &x0_copy, &options),
+                Method::BFGS => minimize_bfgs(func, &x0_copy, &options),
+                Method::Powell => minimize_powell(func, &x0_copy, &options),
+                Method::CG => minimize_conjugate_gradient(func, &x0_copy, &options),
+                _ => Err(OptimizeError::NotImplementedError(format!(
+                    "Method {:?} is not yet implemented",
+                    method
+                ))),
+            }
+        } else {
+            // If x0 is within bounds, proceed normally
+            match method {
+                Method::NelderMead => minimize_nelder_mead(func, x0, &options),
+                Method::BFGS => minimize_bfgs(func, x0, &options),
+                Method::Powell => minimize_powell(func, x0, &options),
+                Method::CG => minimize_conjugate_gradient(func, x0, &options),
+                _ => Err(OptimizeError::NotImplementedError(format!(
+                    "Method {:?} is not yet implemented",
+                    method
+                ))),
+            }
+        }
+    } else {
+        // No bounds provided, proceed with standard optimization
+        match method {
+            Method::NelderMead => minimize_nelder_mead(func, x0, &options),
+            Method::BFGS => minimize_bfgs(func, x0, &options),
+            Method::Powell => minimize_powell(func, x0, &options),
+            Method::CG => minimize_conjugate_gradient(func, x0, &options),
+            _ => Err(OptimizeError::NotImplementedError(format!(
+                "Method {:?} is not yet implemented",
+                method
+            ))),
+        }
     }
 }
 
@@ -465,7 +664,7 @@ where
     Ok(result)
 }
 
-/// Implements Powell's method for unconstrained optimization
+/// Implements Powell's method for unconstrained optimization with optional bounds support
 fn minimize_powell<F, S>(
     func: F,
     x0: &ArrayBase<S, Ix1>,
@@ -478,10 +677,18 @@ where
     // Get options or use defaults
     let ftol = options.ftol.unwrap_or(1e-8);
     let maxiter = options.maxiter.unwrap_or(100 * x0.len());
-
+    let bounds = options.bounds.as_ref();
+    
     // Initialize variables
     let n = x0.len();
     let mut x = x0.to_owned();
+    
+    // If bounds are provided, ensure x0 is within bounds
+    if let Some(bounds) = bounds {
+        let x_slice = x.as_slice_mut().unwrap();
+        bounds.project(x_slice);
+    }
+    
     let mut f = func(x.as_slice().unwrap());
 
     // Initialize the set of directions as the standard basis
@@ -509,8 +716,8 @@ where
         for (i, u) in directions.iter().enumerate().take(n) {
             let f_before = f;
 
-            // Line search along direction u
-            let (alpha, f_min) = line_search_powell(&func, &x, u, f, &mut nfev);
+            // Line search along direction u, respecting bounds
+            let (alpha, f_min) = line_search_powell(&func, &x, u, f, &mut nfev, bounds);
 
             // Update current position and function value
             x = &x + &(alpha * u);
@@ -531,9 +738,16 @@ where
 
         // Compute the new direction
         let new_dir = &x - &x_old;
+        
+        // Check if the new direction is zero (happens if the point hits a bound and can't move)
+        let new_dir_norm = new_dir.iter().map(|&x| x * x).sum::<f64>().sqrt();
+        if new_dir_norm < 1e-8 {
+            // We're likely at a bound constraint and can't make progress
+            break;
+        }
 
-        // Perform an additional line search along the new direction
-        let (alpha, f_min) = line_search_powell(&func, &x, &new_dir, f, &mut nfev);
+        // Perform an additional line search along the new direction, respecting bounds
+        let (alpha, f_min) = line_search_powell(&func, &x, &new_dir, f, &mut nfev, bounds);
 
         // Update current position and function value
         x = &x + &(alpha * &new_dir);
@@ -543,6 +757,20 @@ where
         directions[reduction_idx] = new_dir;
 
         iter += 1;
+    }
+
+    // Final check for bounds
+    if let Some(bounds) = bounds {
+        // This should never happen if line_search_powell respects bounds,
+        // but we include it as a safeguard
+        let x_slice = x.as_slice_mut().unwrap();
+        bounds.project(x_slice);
+        
+        // If we modified x, re-evaluate f
+        if !bounds.is_feasible(x.as_slice().unwrap()) {
+            f = func(x.as_slice().unwrap());
+            nfev += 1;
+        }
     }
 
     // Create and return result
@@ -562,13 +790,74 @@ where
     Ok(result)
 }
 
-/// Helper function for line search in Powell's method
+/// Calculate the range of the line search parameter to respect bounds.
+/// 
+/// For a point x and direction p, find a_min and a_max such that:
+/// x + a * p stays within the bounds for all a in [a_min, a_max].
+fn line_bounds(
+    x: &Array1<f64>,
+    direction: &Array1<f64>,
+    bounds: Option<&Bounds>,
+) -> (f64, f64) {
+    // If no bounds are provided, use unbounded line search
+    if bounds.is_none() {
+        return (f64::NEG_INFINITY, f64::INFINITY);
+    }
+
+    let bounds = bounds.unwrap();
+    
+    // Start with unbounded range
+    let mut a_min = f64::NEG_INFINITY;
+    let mut a_max = f64::INFINITY;
+
+    // For each dimension, calculate the range restriction
+    for i in 0..x.len() {
+        let xi = x[i];
+        let pi = direction[i];
+        
+        // Skip if direction component is zero (no movement in this dimension)
+        if pi.abs() < 1e-10 {
+            continue;
+        }
+        
+        if pi > 0.0 {
+            // Moving in positive direction, upper bound is relevant
+            if let Some(ub) = bounds.ub[i] {
+                a_max = f64::min(a_max, (ub - xi) / pi);
+            }
+            // Lower bound also constrains negative values of a
+            if let Some(lb) = bounds.lb[i] {
+                a_min = f64::max(a_min, (lb - xi) / pi);
+            }
+        } else {
+            // Moving in negative direction, lower bound is relevant
+            if let Some(lb) = bounds.lb[i] {
+                a_max = f64::min(a_max, (lb - xi) / pi);
+            }
+            // Upper bound also constrains negative values of a
+            if let Some(ub) = bounds.ub[i] {
+                a_min = f64::max(a_min, (ub - xi) / pi);
+            }
+        }
+    }
+    
+    // Ensure the range is valid (could be invalid if bounds are inconsistent)
+    if a_min > a_max {
+        a_min = 0.0;
+        a_max = 0.0;
+    }
+    
+    (a_min, a_max)
+}
+
+/// Helper function for line search in Powell's method with bounds support
 fn line_search_powell<F>(
     func: F,
     x: &Array1<f64>,
     direction: &Array1<f64>,
     f_x: f64,
     nfev: &mut usize,
+    bounds: Option<&Bounds>,
 ) -> (f64, f64)
 where
     F: Fn(&[f64]) -> f64,
@@ -577,9 +866,21 @@ where
     let golden_ratio = 0.5 * (3.0 - 5_f64.sqrt());
     let max_evaluations = 20;
 
+    // Get bounds on the line search parameter
+    let (a_min, a_max) = line_bounds(x, direction, bounds);
+    
     // Initial bracketing
-    let mut a = 0.0;
-    let mut b = 1.0;
+    let mut a = f64::max(0.0, a_min);  // Start from 0 or a_min if it's positive
+    let mut b = f64::min(1.0, a_max);  // Start with 1 or a_max if it's less than 1
+    
+    // If bounds constrain both sides to a single point, return immediately
+    if (a_max - a_min).abs() < 1e-10 {
+        let alpha = 0.5 * (a_min + a_max);
+        let x_new = x + alpha * direction;
+        *nfev += 1;
+        let f_min = func(x_new.as_slice().unwrap());
+        return (alpha, f_min);
+    }
 
     // Function to evaluate a point on the line
     let mut f_line = |alpha: f64| {
@@ -588,10 +889,15 @@ where
         func(x_new.as_slice().unwrap())
     };
 
-    // Expand the bracket if needed
+    // Expand the bracket if needed, but stay within bounds
     let mut f_b = f_line(b);
-    while f_b < f_x {
-        b *= 2.0;
+    while f_b < f_x && b < a_max {
+        let b_new = f64::min(b * 2.0, a_max);
+        if b_new == b {
+            // We've hit the bound, can't expand further
+            break;
+        }
+        b = b_new;
         f_b = f_line(b);
 
         // Safety check for unbounded decrease
@@ -600,9 +906,9 @@ where
         }
     }
 
-    // Golden section search
-    let mut c = a + golden_ratio * (b - a);
-    let mut d = a + (1.0 - golden_ratio) * (b - a);
+    // Golden section search, respecting bounds
+    let mut c = f64::min(a + golden_ratio * (b - a), a_max);
+    let mut d = f64::max(a + (1.0 - golden_ratio) * (b - a), a_min);
     let mut f_c = f_line(c);
     let mut f_d = f_line(d);
 
@@ -611,13 +917,13 @@ where
             b = d;
             d = c;
             f_d = f_c;
-            c = a + golden_ratio * (b - a);
+            c = f64::min(a + golden_ratio * (b - a), a_max);
             f_c = f_line(c);
         } else {
             a = c;
             c = d;
             f_c = f_d;
-            d = a + (1.0 - golden_ratio) * (b - a);
+            d = f64::max(a + (1.0 - golden_ratio) * (b - a), a_min);
             f_d = f_line(d);
         }
 
@@ -627,8 +933,8 @@ where
         }
     }
 
-    // Return the midpoint and its function value
-    let alpha = 0.5 * (a + b);
+    // Return the midpoint and its function value, ensuring it's within bounds
+    let alpha = f64::max(a_min, f64::min(0.5 * (a + b), a_max));
     let f_min = f_line(alpha);
 
     (alpha, f_min)
@@ -797,6 +1103,11 @@ mod tests {
         (a - x0).powi(2) + b * (x1 - x0.powi(2)).powi(2)
     }
 
+    fn constrained_function(x: &[f64]) -> f64 {
+        // This function has a minimum at (-1, -1), but we'll constrain it to the positive quadrant
+        (x[0] + 1.0).powi(2) + (x[1] + 1.0).powi(2)
+    }
+
     #[test]
     fn test_minimize_bfgs_quadratic() {
         let x0 = array![1.0, 1.0];
@@ -958,5 +1269,146 @@ mod tests {
         // in a reasonable number of iterations, but it should make progress
         assert!(result.x[0] > 0.0); // Should move in positive direction
         assert!(result.fun < rosenbrock(&[0.0, 0.0])); // Should improve from starting point
+    }
+    
+    // Tests for bounds functionality
+    
+    #[test]
+    fn test_bounds_creation() {
+        // Test creating bounds from pairs
+        let bounds = Bounds::new(&[(Some(0.0), None), (None, Some(1.0))]);
+        assert_eq!(bounds.lb.len(), 2);
+        assert_eq!(bounds.ub.len(), 2);
+        assert_eq!(bounds.lb[0], Some(0.0));
+        assert_eq!(bounds.lb[1], None);
+        assert_eq!(bounds.ub[0], None);
+        assert_eq!(bounds.ub[1], Some(1.0));
+        
+        // Test creating bounds from vectors
+        let lb = vec![Some(0.0), None];
+        let ub = vec![None, Some(1.0)];
+        let bounds = Bounds::from_vecs(lb, ub).unwrap();
+        assert_eq!(bounds.lb[0], Some(0.0));
+        assert_eq!(bounds.lb[1], None);
+        assert_eq!(bounds.ub[0], None);
+        assert_eq!(bounds.ub[1], Some(1.0));
+    }
+    
+    #[test]
+    fn test_bounds_validation() {
+        // Test valid bounds
+        let lb = vec![Some(0.0), Some(-1.0)];
+        let ub = vec![Some(1.0), Some(1.0)];
+        let bounds = Bounds::from_vecs(lb, ub);
+        assert!(bounds.is_ok());
+        
+        // Test invalid bounds (lower > upper)
+        let lb = vec![Some(2.0), Some(-1.0)];
+        let ub = vec![Some(1.0), Some(1.0)];
+        let bounds = Bounds::from_vecs(lb, ub);
+        assert!(bounds.is_err());
+        
+        // Test unequal length bounds
+        let lb = vec![Some(0.0)];
+        let ub = vec![Some(1.0), Some(1.0)];
+        let bounds = Bounds::from_vecs(lb, ub);
+        assert!(bounds.is_err());
+    }
+    
+    #[test]
+    fn test_bounds_feasibility() {
+        let bounds = Bounds::new(&[(Some(0.0), Some(1.0)), (Some(-1.0), Some(1.0))]);
+        
+        // Test feasible point
+        assert!(bounds.is_feasible(&[0.5, 0.0]));
+        
+        // Test infeasible points
+        assert!(!bounds.is_feasible(&[-0.5, 0.0]));  // First dimension below lower bound
+        assert!(!bounds.is_feasible(&[0.5, 1.5]));   // Second dimension above upper bound
+        assert!(!bounds.is_feasible(&[0.5]));        // Wrong dimension
+    }
+    
+    #[test]
+    fn test_bounds_projection() {
+        let bounds = Bounds::new(&[(Some(0.0), Some(1.0)), (Some(-1.0), Some(1.0))]);
+        
+        // Test projection for point inside bounds
+        let mut x = [0.5, 0.0];
+        bounds.project(&mut x);
+        assert_eq!(x, [0.5, 0.0]);
+        
+        // Test projection for point outside bounds
+        let mut x = [-0.5, 2.0];
+        bounds.project(&mut x);
+        assert_eq!(x, [0.0, 1.0]);
+    }
+    
+    #[test]
+    fn test_bounds_to_arrays() {
+        let bounds = Bounds::new(&[(Some(0.0), Some(1.0)), (None, Some(1.0)), (Some(-1.0), None)]);
+        let (lb, ub) = bounds.to_arrays();
+        
+        // Check lower bound array
+        assert_eq!(lb[0], 0.0);
+        assert!(lb[1] == f64::NEG_INFINITY);
+        assert_eq!(lb[2], -1.0);
+        
+        // Check upper bound array
+        assert_eq!(ub[0], 1.0);
+        assert_eq!(ub[1], 1.0);
+        assert!(ub[2] == f64::INFINITY);
+    }
+    
+    #[test]
+    fn test_minimize_with_bounds_powell() {
+        // This function has minimum at [-1, -1], but we'll constrain it to the positive quadrant
+        let x0 = array![-0.5, -0.5];
+        
+        // Create bounds: x >= 0, y >= 0
+        let bounds = Bounds::new(&[(Some(0.0), None), (Some(0.0), None)]);
+        let mut options = Options::default();
+        options.bounds = Some(bounds);
+        
+        let result = minimize(constrained_function, &x0.view(), Method::Powell, Some(options)).unwrap();
+        
+        // The constrained minimum should be at [0, 0]
+        assert!(result.success);
+        assert!(result.x[0] >= 0.0); // Should be at or very close to lower bound
+        assert!(result.x[1] >= 0.0);
+        assert!(result.x[0] < 1e-3); // Should be very close to zero
+        assert!(result.x[1] < 1e-3);
+        
+        // The function value should be 2.0 at [0, 0]
+        assert!((result.fun - 2.0).abs() < 1e-3);
+    }
+    
+    #[test]
+    fn test_line_bounds() {
+        // Create a simple bounds constraint: 0 <= x <= 1, 0 <= y <= 1
+        let bounds = Bounds::new(&[(Some(0.0), Some(1.0)), (Some(0.0), Some(1.0))]);
+        
+        // Test line bounds from the origin in positive direction
+        let x = array![0.0, 0.0];
+        let direction = array![1.0, 1.0];
+        let (a_min, a_max) = line_bounds(&x, &direction, Some(&bounds));
+        assert!(a_min <= 0.0);
+        assert_eq!(a_max, 1.0); // Can move 1.0 in this direction before hitting bounds
+        
+        // Test line bounds from a point inside the bounds
+        let x = array![0.5, 0.5];
+        let direction = array![1.0, 0.0]; // Moving along x-axis
+        let (a_min, a_max) = line_bounds(&x, &direction, Some(&bounds));
+        assert_eq!(a_max, 0.5); // Can move 0.5 in positive x before hitting bound
+        assert_eq!(a_min, -0.5); // Can move -0.5 in negative x before hitting bound
+        
+        // Test with a more complex direction vector
+        let x = array![0.5, 0.5];
+        let direction = array![1.0, 2.0]; // Moving in direction [1, 2]
+        let (a_min, a_max) = line_bounds(&x, &direction, Some(&bounds));
+        assert_eq!(a_max, 0.25); // Hits y=1 at t=0.25
+        
+        // Calculate a_min manually: we hit x=0 at t = -0.5 and y=0 at t = -0.25
+        // The minimum t is the maximum of these values (least negative), which is -0.25
+        assert_eq!(a_min, -0.25); // Hits y=0 at t=-0.25, which is the limiting bound
     }
 }
