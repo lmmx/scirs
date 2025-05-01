@@ -147,7 +147,7 @@ pub mod prelude {
     pub use crate::least_squares::{least_squares, Method as LeastSquaresMethod};
     pub use crate::result::OptimizeResults;
     pub use crate::roots::{root, Method as RootMethod};
-    pub use crate::unconstrained::{minimize, Method as UnconstrainedMethod, Bounds, Options};
+    pub use crate::unconstrained::{minimize, Bounds, Method as UnconstrainedMethod, Options};
 }
 
 #[cfg(test)]
