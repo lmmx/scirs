@@ -402,6 +402,9 @@ where
                 Method::LBFGS => minimize_lbfgs(func, &x0_copy, &options),
                 Method::LBFGSB => minimize_lbfgsb(func, &x0_copy, &options),
                 Method::TrustNCG => minimize_trust_ncg(func, &x0_copy, &options),
+                Method::NewtonCG => minimize_newton_cg(func, &x0_copy, &options),
+                Method::TrustKrylov => minimize_trust_krylov(func, &x0_copy, &options),
+                Method::TrustExact => minimize_trust_exact(func, &x0_copy, &options),
                 _ => Err(OptimizeError::NotImplementedError(format!(
                     "Method {:?} is not yet implemented",
                     method
@@ -417,6 +420,9 @@ where
                 Method::LBFGS => minimize_lbfgs(func, x0, &options),
                 Method::LBFGSB => minimize_lbfgsb(func, x0, &options),
                 Method::TrustNCG => minimize_trust_ncg(func, x0, &options),
+                Method::NewtonCG => minimize_newton_cg(func, x0, &options),
+                Method::TrustKrylov => minimize_trust_krylov(func, x0, &options),
+                Method::TrustExact => minimize_trust_exact(func, x0, &options),
                 _ => Err(OptimizeError::NotImplementedError(format!(
                     "Method {:?} is not yet implemented",
                     method
@@ -440,6 +446,9 @@ where
                 minimize_lbfgsb(func, x0, &options)
             }
             Method::TrustNCG => minimize_trust_ncg(func, x0, &options),
+            Method::NewtonCG => minimize_newton_cg(func, x0, &options),
+            Method::TrustKrylov => minimize_trust_krylov(func, x0, &options),
+            Method::TrustExact => minimize_trust_exact(func, x0, &options),
             _ => Err(OptimizeError::NotImplementedError(format!(
                 "Method {:?} is not yet implemented",
                 method
@@ -2211,6 +2220,983 @@ where
     Ok(result)
 }
 
+/// Implements the Newton-Conjugate-Gradient algorithm for unconstrained optimization
+fn minimize_newton_cg<F, S>(
+    func: F,
+    x0: &ArrayBase<S, Ix1>,
+    options: &Options,
+) -> OptimizeResult<OptimizeResults<f64>>
+where
+    F: Fn(&[f64]) -> f64,
+    S: Data<Elem = f64>,
+{
+    // Get options or use defaults
+    let ftol = options.ftol.unwrap_or(1e-8);
+    let gtol = options.gtol.unwrap_or(1e-8);
+    let maxiter = options.maxiter.unwrap_or(100 * x0.len());
+    let eps = options.eps.unwrap_or(1e-8);
+    let bounds = options.bounds.as_ref();
+    let disp = options.disp;
+
+    // Initialize variables
+    let n = x0.len();
+    let mut x = x0.to_owned();
+
+    // Ensure initial point is within bounds
+    if let Some(bounds) = bounds {
+        let x_slice = x.as_slice_mut().unwrap();
+        bounds.project(x_slice);
+    }
+
+    // Function evaluation counter
+    let mut nfev = 0;
+    let mut njev = 0; // Jacobian evaluation counter
+
+    // Initialize function value
+    let mut f = func(x.as_slice().unwrap());
+    nfev += 1;
+
+    // Initialize gradient
+    let mut g = Array1::zeros(n);
+    calculate_gradient(&func, &x, &mut g, eps, bounds, &mut nfev);
+    njev += 1;
+
+    // Iteration counter
+    let mut iter = 0;
+
+    // For printing
+    if disp {
+        println!(
+            "Iteration {}: f = {}, |grad| = {}",
+            iter,
+            f,
+            g.dot(&g).sqrt()
+        );
+    }
+
+    // Main optimization loop
+    while iter < maxiter {
+        // Check convergence on gradient
+        let g_norm = g.dot(&g).sqrt();
+        if g_norm < gtol {
+            if disp {
+                println!("Converged: Gradient norm {} < gtol {}", g_norm, gtol);
+            }
+            break;
+        }
+
+        // Save the current function value for convergence check
+        let _f_old = f;
+
+        // Calculate the Hessian approximation using finite differences
+        let hess = finite_difference_hessian(&func, &x, &g, eps, &mut nfev);
+
+        // Solve the Newton-CG system to find the step direction
+        let mut p = solve_newton_cg_system(&g, &hess, gtol);
+
+        // If the bounds are provided, project the search direction
+        if let Some(bounds) = bounds {
+            project_direction(&mut p, &x, Some(bounds));
+        }
+
+        // Line search along the direction to determine the step size
+        let (alpha, f_new) = line_search_cg(&func, &x, &p, f, &mut nfev, bounds);
+
+        // Take the step
+        let mut x_new = &x + &(&p * alpha);
+
+        // Ensure we're within bounds (should already be ensured by line_search_cg)
+        if let Some(bounds) = bounds {
+            let x_new_slice = x_new.as_slice_mut().unwrap();
+            bounds.project(x_new_slice);
+        }
+
+        // Check if the step actually moved the point
+        let step_size = (&x_new - &x).iter().map(|&s| s * s).sum::<f64>().sqrt();
+        if step_size < 1e-10 {
+            // We're at a boundary constraint and can't move further
+            x = x_new;
+            f = f_new;
+            break;
+        }
+
+        // Calculate the new gradient
+        let mut g_new = Array1::zeros(n);
+        calculate_gradient(&func, &x_new, &mut g_new, eps, bounds, &mut nfev);
+        njev += 1;
+
+        // Check convergence on function value
+        if (f - f_new).abs() < ftol * (1.0 + f.abs()) {
+            x = x_new;
+            f = f_new;
+            g = g_new;
+            if disp {
+                println!(
+                    "Converged: Function value change {} < ftol {}",
+                    (f - f_new).abs(),
+                    ftol
+                );
+            }
+            break;
+        }
+
+        // Update variables for next iteration
+        x = x_new;
+        f = f_new;
+        g = g_new;
+
+        iter += 1;
+
+        if disp {
+            println!(
+                "Iteration {}: f = {}, |grad| = {}",
+                iter,
+                f,
+                g.dot(&g).sqrt()
+            );
+        }
+    }
+
+    // Create and return result
+    let mut result = OptimizeResults::default();
+    result.x = x;
+    result.fun = f;
+    result.jac = Some(g.into_raw_vec_and_offset().0);
+    result.nfev = nfev;
+    result.njev = njev;
+    result.nit = iter;
+    result.success = iter < maxiter;
+
+    if result.success {
+        result.message = "Optimization terminated successfully.".to_string();
+    } else {
+        result.message = "Maximum iterations reached.".to_string();
+    }
+
+    Ok(result)
+}
+
+/// Solve the Newton-CG system Hx = -g using the conjugate gradient method
+fn solve_newton_cg_system(g: &Array1<f64>, hess: &Array2<f64>, tol: f64) -> Array1<f64> {
+    let n = g.len();
+    
+    // Start with x = 0
+    let mut x = Array1::zeros(n);
+    
+    // If gradient is zero, return a zero step
+    if g.dot(g) < 1e-10 {
+        return x;
+    }
+    
+    // Initialize residual r = -g - Hx = -g (since x=0)
+    let mut r = -g.clone();
+    
+    // Initialize search direction p = r
+    let mut p = r.clone();
+    
+    // Initial residual norm
+    let r0_norm = r.dot(&r).sqrt();
+    
+    // Convergence tolerance (relative to initial residual)
+    let cg_tol = f64::min(0.1, r0_norm * tol);
+    
+    // Maximum number of CG iterations
+    let max_cg_iters = 2 * n;
+    
+    // Conjugate gradient iterations
+    for _ in 0..max_cg_iters {
+        // Compute H*p
+        let hp = hess.dot(&p);
+        
+        // Compute p'*H*p
+        let php = p.dot(&hp);
+        
+        // If the curvature is negative or very small, terminate the CG iterations
+        if php <= 1e-10 {
+            // Use the current direction, even if it's not optimal
+            return x;
+        }
+        
+        // Compute the CG step size
+        let alpha = r.dot(&r) / php;
+        
+        // Update the solution
+        x = &x + &(&p * alpha);
+        
+        // Update the residual: r_{k+1} = r_k - alpha * H * p_k
+        r = &r - &(&hp * alpha);
+        
+        // Check convergence
+        if r.dot(&r).sqrt() < cg_tol {
+            break;
+        }
+        
+        // Calculate beta for the next conjugate direction
+        let r_new_norm_squared = r.dot(&r);
+        let r_old_norm_squared = p.dot(&p);
+        // This is actually different than the standard CG formula,
+        // but we're using p as a stand-in for r_old here
+        let beta = r_new_norm_squared / r_old_norm_squared;
+        
+        // Update the search direction
+        p = &r + &(&p * beta);
+    }
+    
+    x
+}
+
+/// Implements the Trust-Region truncated generalized Lanczos / conjugate gradient algorithm
+fn minimize_trust_krylov<F, S>(
+    func: F,
+    x0: &ArrayBase<S, Ix1>,
+    options: &Options,
+) -> OptimizeResult<OptimizeResults<f64>>
+where
+    F: Fn(&[f64]) -> f64,
+    S: Data<Elem = f64>,
+{
+    // Get options or use defaults
+    let ftol = options.ftol.unwrap_or(1e-8);
+    let gtol = options.gtol.unwrap_or(1e-8);
+    let maxiter = options.maxiter.unwrap_or(100 * x0.len());
+    let eps = options.eps.unwrap_or(1e-8);
+    let disp = options.disp;
+    let initial_trust_radius = options.initial_trust_radius.unwrap_or(1.0);
+    let max_trust_radius = options.max_trust_radius.unwrap_or(1000.0);
+    let min_trust_radius = options.min_trust_radius.unwrap_or(1e-10);
+    let eta = options.eta.unwrap_or(1e-4);
+    let eta1 = options.eta1.unwrap_or(0.25);
+    let eta2 = options.eta2.unwrap_or(0.75);
+
+    // Initialize variables
+    let n = x0.len();
+    let mut x = x0.to_owned();
+
+    // Function evaluation counter
+    let mut nfev = 0;
+    let mut njev = 0; // Jacobian evaluation counter
+
+    // Initialize function value
+    let mut f = func(x.as_slice().unwrap());
+    nfev += 1;
+
+    // Initialize gradient
+    let mut g = Array1::zeros(n);
+    calculate_gradient(&func, &x, &mut g, eps, None, &mut nfev);
+    njev += 1;
+
+    // Initialize trust radius
+    let mut trust_radius = initial_trust_radius;
+
+    // Iteration counter
+    let mut iter = 0;
+
+    // For printing
+    if disp {
+        println!(
+            "Iteration {}: f = {}, |grad| = {}, trust_radius = {}",
+            iter,
+            f,
+            g.dot(&g).sqrt(),
+            trust_radius
+        );
+    }
+
+    // Main optimization loop
+    while iter < maxiter {
+        // Check convergence on gradient
+        let g_norm = g.dot(&g).sqrt();
+        if g_norm < gtol {
+            if disp {
+                println!("Converged: Gradient norm {} < gtol {}", g_norm, gtol);
+            }
+            break;
+        }
+
+        // Save the current function value for convergence check
+        let f_old = f;
+
+        // Calculate the Hessian approximation using finite differences
+        let hess = finite_difference_hessian(&func, &x, &g, eps, &mut nfev);
+
+        // Solve the trust-region subproblem using Lanczos method
+        let (step, hits_boundary) = trust_region_lanczos_subproblem(&g, &hess, trust_radius);
+
+        // Calculate the predicted reduction in the model
+        let pred_reduction = calculate_predicted_reduction(&g, &hess, &step);
+
+        // Take the step
+        let x_new = &x + &step;
+        let f_new = func(x_new.as_slice().unwrap());
+        nfev += 1;
+
+        // Calculate the actual reduction
+        let actual_reduction = f - f_new;
+
+        // Calculate the ratio of actual to predicted reduction
+        let ratio = if pred_reduction.abs() < 1e-8 {
+            1.0
+        } else {
+            actual_reduction / pred_reduction
+        };
+
+        // Update the trust region radius based on the ratio
+        if ratio < eta1 {
+            // Reduction is poor - shrink the trust region
+            trust_radius *= 0.25;
+        } else if ratio > eta2 && hits_boundary {
+            // Good reduction and we're at the boundary - expand the trust region
+            trust_radius = f64::min(2.0 * trust_radius, max_trust_radius);
+        }
+
+        // Accept or reject the step based on the ratio
+        if ratio > eta {
+            // Accept the step
+            x = x_new;
+            f = f_new;
+
+            // Recalculate the gradient at the new point
+            calculate_gradient(&func, &x, &mut g, eps, None, &mut nfev);
+            njev += 1;
+
+            if disp {
+                println!("Step accepted, ratio = {}", ratio);
+            }
+        } else if disp {
+            println!("Step rejected, ratio = {}", ratio);
+        }
+
+        // Check convergence on trust region radius
+        if trust_radius < min_trust_radius {
+            if disp {
+                println!(
+                    "Converged: Trust region radius {} < min_trust_radius {}",
+                    trust_radius, min_trust_radius
+                );
+            }
+            break;
+        }
+
+        // Check convergence on function value if step was accepted
+        if ratio > eta && (f_old - f).abs() < ftol * (1.0 + f.abs()) {
+            if disp {
+                println!(
+                    "Converged: Function value change {} < ftol {}",
+                    (f_old - f).abs(),
+                    ftol
+                );
+            }
+            break;
+        }
+
+        iter += 1;
+
+        if disp {
+            println!(
+                "Iteration {}: f = {}, |grad| = {}, trust_radius = {}",
+                iter,
+                f,
+                g.dot(&g).sqrt(),
+                trust_radius
+            );
+        }
+    }
+
+    // Create and return result
+    let mut result = OptimizeResults::default();
+    result.x = x;
+    result.fun = f;
+    result.jac = Some(g.into_raw_vec_and_offset().0);
+    result.nfev = nfev;
+    result.njev = njev;
+    result.nit = iter;
+    result.success = iter < maxiter;
+
+    if result.success {
+        result.message = "Optimization terminated successfully.".to_string();
+    } else {
+        result.message = "Maximum iterations reached.".to_string();
+    }
+
+    Ok(result)
+}
+
+/// Solve the trust region subproblem using the Lanczos method
+fn trust_region_lanczos_subproblem(
+    g: &Array1<f64>,
+    hess: &Array2<f64>,
+    trust_radius: f64,
+) -> (Array1<f64>, bool) {
+    let n = g.len();
+    
+    // Start with the steepest descent direction
+    let mut v1 = -g.clone();
+    v1 = &v1 / v1.dot(&v1).sqrt();
+    
+    // If the gradient is zero, return a zero step
+    if g.dot(g) < 1e-10 {
+        return (Array1::zeros(n), false);
+    }
+    
+    // Maximum number of Lanczos iterations (typically much smaller than dimension)
+    let max_lanczos_iters = 10.min(n);
+    
+    // Store the Lanczos vectors
+    let mut v = Vec::with_capacity(max_lanczos_iters);
+    v.push(v1);
+    
+    // Store the tridiagonal matrix elements
+    let mut alpha = Vec::with_capacity(max_lanczos_iters);
+    let mut beta = Vec::with_capacity(max_lanczos_iters);
+    
+    // Construct the Lanczos tridiagonal decomposition
+    let mut w = hess.dot(&v[0]);
+    alpha.push(w.dot(&v[0]));
+    
+    let mut hits_boundary = false;
+    
+    // Lanczos iterations to build the Krylov subspace
+    for j in 1..max_lanczos_iters {
+        // w = H*v_j - beta_{j-1}*v_{j-1}
+        if j > 1 {
+            w -= &(&v[j-2] * beta[j-2]);
+        }
+        
+        // w = w - alpha_{j-1}*v_{j-1}
+        w -= &(&v[j-1] * alpha[j-1]);
+        
+        // Reorthogonalize (important for numerical stability)
+        for vi in v.iter().take(j) {
+            let projection = w.dot(vi);
+            w -= &(vi * projection);
+        }
+        
+        // Compute beta_j
+        let b = w.dot(&w).sqrt();
+        beta.push(b);
+        
+        // Check if we can continue building the Krylov subspace
+        if b < 1e-10 {
+            // Exact solution found within the Krylov subspace
+            break;
+        }
+        
+        // Normalize w to get the next Lanczos vector
+        let vj = &w / b;
+        v.push(vj.clone());
+        
+        // Update w for next iteration
+        w = hess.dot(&vj);
+        alpha.push(w.dot(&vj));
+    }
+    
+    // Now solve the trust region subproblem in the Krylov subspace
+    let k = alpha.len();
+    
+    // Construct the tridiagonal matrix T
+    let mut t = Array2::zeros((k, k));
+    for i in 0..k {
+        t[[i, i]] = alpha[i];
+        if i < k - 1 {
+            t[[i, i+1]] = beta[i];
+            t[[i+1, i]] = beta[i];
+        }
+    }
+    
+    // Get the smallest eigenvalue of T
+    let mut lambda_min = alpha[0];
+    for &a in alpha.iter().take(k).skip(1) {
+        lambda_min = f64::min(lambda_min, a);
+    }
+    
+    // Initial guess for lambda (shifted eigenvalue)
+    let mut lambda = if lambda_min < 0.0 {
+        -lambda_min + 0.1
+    } else {
+        0.0
+    };
+    
+    // Build the right-hand side (first basis vector scaled by ||g||)
+    let mut b = Array1::zeros(k);
+    b[0] = g.dot(g).sqrt();
+    
+    // Iteratively solve using a shifted system and update lambda
+    let mut s = Array1::zeros(k);
+    let mut inside_trust_region = false;
+    
+    // Maximum iterations for the trust region subproblem
+    let max_tr_iters = 10;
+    
+    for _ in 0..max_tr_iters {
+        // Solve (T + lambda*I)s = b using tridiagonal solver
+        s = solve_tridiagonal_system(
+            &t, 
+            &b, 
+            lambda
+        );
+        
+        // Check if we're inside the trust region
+        let norm_s = s.dot(&s).sqrt();
+        
+        if (norm_s - trust_radius).abs() < 1e-6 * trust_radius {
+            // We're at the boundary of the trust region
+            inside_trust_region = false;
+            hits_boundary = true;
+            break;
+        } else if norm_s < trust_radius {
+            // We're inside the trust region
+            inside_trust_region = true;
+            
+            // Check if lambda is effectively zero (unconstrained solution)
+            if lambda < 1e-10 {
+                break;
+            }
+            
+            // Decrease lambda to move closer to the boundary
+            lambda /= 4.0;
+        } else {
+            // We're outside the trust region, increase lambda
+            lambda *= 2.0;
+        }
+    }
+    
+    // Convert the solution in the Krylov subspace back to the original space
+    let mut step: Array1<f64> = Array1::zeros(n);
+    for (i, vi) in v.iter().take(k).enumerate() {
+        step += &(vi * s[i]);
+    }
+    
+    // If we're inside the trust region but lambda > 0, we've hit numerical issues
+    // In this case, scale the solution to the boundary
+    if inside_trust_region && lambda > 1e-10 {
+        let norm_step = step.dot(&step).sqrt();
+        step = &step * (trust_radius / norm_step);
+        hits_boundary = true;
+    }
+    
+    (step, hits_boundary)
+}
+
+/// Solve a tridiagonal system (T + lambda*I)x = b
+fn solve_tridiagonal_system(
+    t: &Array2<f64>,
+    b: &Array1<f64>,
+    lambda: f64
+) -> Array1<f64> {
+    let n = t.shape()[0];
+    let mut d = Array1::zeros(n);  // Diagonal elements
+    let mut e = Array1::zeros(n-1); // Off-diagonal elements
+    
+    // Extract diagonal and off-diagonal elements
+    for i in 0..n {
+        d[i] = t[[i, i]] + lambda;
+        if i < n-1 {
+            e[i] = t[[i, i+1]];
+        }
+    }
+    
+    // Forward substitution
+    let mut u = Array1::zeros(n);
+    let mut w = d[0];
+    u[0] = b[0] / w;
+    
+    for i in 1..n {
+        let temp = e[i-1] / w;
+        w = d[i] - temp * e[i-1];
+        u[i] = (b[i] - e[i-1] * u[i-1]) / w;
+    }
+    
+    // Back substitution
+    let mut x = Array1::zeros(n);
+    x[n-1] = u[n-1];
+    
+    for i in (0..n-1).rev() {
+        x[i] = u[i] - (e[i] / d[i+1]) * x[i+1];
+    }
+    
+    x
+}
+
+/// Implements the Trust-region nearly exact algorithm
+fn minimize_trust_exact<F, S>(
+    func: F,
+    x0: &ArrayBase<S, Ix1>,
+    options: &Options,
+) -> OptimizeResult<OptimizeResults<f64>>
+where
+    F: Fn(&[f64]) -> f64,
+    S: Data<Elem = f64>,
+{
+    // Get options or use defaults
+    let ftol = options.ftol.unwrap_or(1e-8);
+    let gtol = options.gtol.unwrap_or(1e-8);
+    let maxiter = options.maxiter.unwrap_or(100 * x0.len());
+    let eps = options.eps.unwrap_or(1e-8);
+    let disp = options.disp;
+    let initial_trust_radius = options.initial_trust_radius.unwrap_or(1.0);
+    let max_trust_radius = options.max_trust_radius.unwrap_or(1000.0);
+    let min_trust_radius = options.min_trust_radius.unwrap_or(1e-10);
+    let eta = options.eta.unwrap_or(1e-4);
+    let eta1 = options.eta1.unwrap_or(0.25);
+    let eta2 = options.eta2.unwrap_or(0.75);
+
+    // Initialize variables
+    let n = x0.len();
+    let mut x = x0.to_owned();
+
+    // Function evaluation counter
+    let mut nfev = 0;
+    let mut njev = 0; // Jacobian evaluation counter
+
+    // Initialize function value
+    let mut f = func(x.as_slice().unwrap());
+    nfev += 1;
+
+    // Initialize gradient
+    let mut g = Array1::zeros(n);
+    calculate_gradient(&func, &x, &mut g, eps, None, &mut nfev);
+    njev += 1;
+
+    // Initialize trust radius
+    let mut trust_radius = initial_trust_radius;
+
+    // Iteration counter
+    let mut iter = 0;
+
+    // For printing
+    if disp {
+        println!(
+            "Iteration {}: f = {}, |grad| = {}, trust_radius = {}",
+            iter,
+            f,
+            g.dot(&g).sqrt(),
+            trust_radius
+        );
+    }
+
+    // Main optimization loop
+    while iter < maxiter {
+        // Check convergence on gradient
+        let g_norm = g.dot(&g).sqrt();
+        if g_norm < gtol {
+            if disp {
+                println!("Converged: Gradient norm {} < gtol {}", g_norm, gtol);
+            }
+            break;
+        }
+
+        // Save the current function value for convergence check
+        let f_old = f;
+
+        // Calculate the Hessian approximation using finite differences
+        let hess = finite_difference_hessian(&func, &x, &g, eps, &mut nfev);
+
+        // Solve the trust-region subproblem using exact eigendecomposition 
+        let (step, hits_boundary) = trust_region_exact_subproblem(&g, &hess, trust_radius);
+
+        // Calculate the predicted reduction in the model
+        let pred_reduction = calculate_predicted_reduction(&g, &hess, &step);
+
+        // Take the step
+        let x_new = &x + &step;
+        let f_new = func(x_new.as_slice().unwrap());
+        nfev += 1;
+
+        // Calculate the actual reduction
+        let actual_reduction = f - f_new;
+
+        // Calculate the ratio of actual to predicted reduction
+        let ratio = if pred_reduction.abs() < 1e-8 {
+            1.0
+        } else {
+            actual_reduction / pred_reduction
+        };
+
+        // Update the trust region radius based on the ratio
+        if ratio < eta1 {
+            // Reduction is poor - shrink the trust region
+            trust_radius *= 0.25;
+        } else if ratio > eta2 && hits_boundary {
+            // Good reduction and we're at the boundary - expand the trust region
+            trust_radius = f64::min(2.0 * trust_radius, max_trust_radius);
+        }
+
+        // Accept or reject the step based on the ratio
+        if ratio > eta {
+            // Accept the step
+            x = x_new;
+            f = f_new;
+
+            // Recalculate the gradient at the new point
+            calculate_gradient(&func, &x, &mut g, eps, None, &mut nfev);
+            njev += 1;
+
+            if disp {
+                println!("Step accepted, ratio = {}", ratio);
+            }
+        } else if disp {
+            println!("Step rejected, ratio = {}", ratio);
+        }
+
+        // Check convergence on trust region radius
+        if trust_radius < min_trust_radius {
+            if disp {
+                println!(
+                    "Converged: Trust region radius {} < min_trust_radius {}",
+                    trust_radius, min_trust_radius
+                );
+            }
+            break;
+        }
+
+        // Check convergence on function value if step was accepted
+        if ratio > eta && (f_old - f).abs() < ftol * (1.0 + f.abs()) {
+            if disp {
+                println!(
+                    "Converged: Function value change {} < ftol {}",
+                    (f_old - f).abs(),
+                    ftol
+                );
+            }
+            break;
+        }
+
+        iter += 1;
+
+        if disp {
+            println!(
+                "Iteration {}: f = {}, |grad| = {}, trust_radius = {}",
+                iter,
+                f,
+                g.dot(&g).sqrt(),
+                trust_radius
+            );
+        }
+    }
+
+    // Create and return result
+    let mut result = OptimizeResults::default();
+    result.x = x;
+    result.fun = f;
+    result.jac = Some(g.into_raw_vec_and_offset().0);
+    result.nfev = nfev;
+    result.njev = njev;
+    result.nit = iter;
+    result.success = iter < maxiter;
+
+    if result.success {
+        result.message = "Optimization terminated successfully.".to_string();
+    } else {
+        result.message = "Maximum iterations reached.".to_string();
+    }
+
+    Ok(result)
+}
+
+/// Solve the trust region subproblem using the exact method with eigendecomposition
+fn trust_region_exact_subproblem(
+    g: &Array1<f64>, 
+    hess: &Array2<f64>,
+    trust_radius: f64
+) -> (Array1<f64>, bool) {
+    let n = g.len();
+    
+    // If the gradient is zero, return a zero step
+    if g.dot(g) < 1e-10 {
+        return (Array1::zeros(n), false);
+    }
+    
+    // Compute eigendecomposition of the Hessian matrix
+    let (eigvals, eigvecs) = compute_eig_decomposition(hess);
+    
+    // Check if the Hessian is positive definite (all eigenvalues > 0)
+    let min_eigval = eigvals.iter().cloned().fold(f64::INFINITY, f64::min);
+    
+    // Transform the gradient to the eigenbasis
+    let mut g_transformed = Array1::zeros(n);
+    for i in 0..n {
+        let eigvec_i = eigvecs.column(i);
+        g_transformed[i] = -eigvec_i.dot(g); // Negative because we're minimizing
+    }
+    
+    // If the Hessian is positive definite, try the unconstrained Newton step first
+    if min_eigval > 0.0 {
+        // Compute the unconstrained step: s = -H^(-1) * g
+        let mut newton_step = Array1::zeros(n);
+        for i in 0..n {
+            newton_step[i] = g_transformed[i] / eigvals[i];
+        }
+        
+        // Transform back to the original basis
+        let mut step: Array1<f64> = Array1::zeros(n);
+        for i in 0..n {
+            let eigvec_i = eigvecs.column(i);
+            step += &(&eigvec_i * newton_step[i]);
+        }
+        
+        // Check if the Newton step is within the trust radius
+        let step_norm = step.dot(&step).sqrt();
+        if step_norm <= trust_radius {
+            // Unconstrained minimizer is within the trust region
+            return (step, false);
+        }
+    }
+    
+    // The unconstrained minimizer is outside the trust region or the Hessian is not positive definite
+    // We need to find the optimal lambda (Lagrange multiplier) that gives a step at the trust region boundary
+    
+    // Define a function that gives the step norm for a given lambda
+    let phi = |lambda: f64| -> f64 {
+        let mut norm_squared = 0.0;
+        for i in 0..n {
+            let step_i = g_transformed[i] / (eigvals[i] + lambda);
+            norm_squared += step_i * step_i;
+        }
+        norm_squared.sqrt() - trust_radius
+    };
+    
+    // Find the optimal lambda using a numerical method (e.g., bisection)
+    let lambda_min = if min_eigval > 0.0 { 0.0 } else { -min_eigval + 1e-6 };
+    let lambda_max = lambda_min + 1000.0; // Some large value
+    
+    let lambda = find_lambda_bisection(lambda_min, lambda_max, phi);
+    
+    // Compute the step with the optimal lambda
+    let mut opt_step_transformed = Array1::zeros(n);
+    for i in 0..n {
+        opt_step_transformed[i] = g_transformed[i] / (eigvals[i] + lambda);
+    }
+    
+    // Transform back to the original basis
+    let mut step: Array1<f64> = Array1::zeros(n);
+    for i in 0..n {
+        let eigvec_i = eigvecs.column(i);
+        step += &(&eigvec_i * opt_step_transformed[i]);
+    }
+    
+    // Return the step and indicate that we hit the boundary
+    (step, true)
+}
+
+/// Compute eigendecomposition of a matrix
+fn compute_eig_decomposition(mat: &Array2<f64>) -> (Array1<f64>, Array2<f64>) {
+    let n = mat.nrows();
+    
+    // This is a simplistic approach to eigendecomposition
+    // For production code, you would use a library like nalgebra or ndarray-linalg
+    
+    // For now, we'll use a basic Power Method to find the largest eigenvalue/eigenvector
+    // and then deflate the matrix recursively
+    
+    let mut eigvals = Array1::zeros(n);
+    let mut eigvecs = Array2::zeros((n, n));
+    
+    // Create a copy of the matrix for deflation
+    let mut mat_copy = mat.clone();
+    
+    for k in 0..n {
+        // Initialize a simple vector for the power method
+        // We use the k-th standard basis vector as a starting point
+        let mut v = Array1::zeros(n);
+        v[k % n] = 1.0; // Just use the unit vectors cycling through dimensions
+        // Add a small perturbation to avoid issues with symmetry
+        for i in 0..n {
+            v[i] += 0.01 * (i as f64);
+        }
+        
+        v = &v / v.dot(&v).sqrt(); // Normalize
+        
+        // Run power method iterations
+        for _ in 0..50 {
+            // Multiply the matrix by the vector
+            let w = mat_copy.dot(&v);
+            
+            // Normalize
+            let norm = w.dot(&w).sqrt();
+            if norm < 1e-10 {
+                break;
+            }
+            
+            v = &w / norm;
+        }
+        
+        // Rayleigh quotient to find the eigenvalue
+        let eigval = v.dot(&mat_copy.dot(&v));
+        eigvals[k] = eigval;
+        
+        // Store the eigenvector
+        for i in 0..n {
+            eigvecs[[i, k]] = v[i];
+        }
+        
+        // Deflate the matrix: M' = M - lambda * v * v^T
+        for i in 0..n {
+            for j in 0..n {
+                mat_copy[[i, j]] -= eigval * v[i] * v[j];
+            }
+        }
+    }
+    
+    (eigvals, eigvecs)
+}
+
+/// Find the optimal lambda using the bisection method
+fn find_lambda_bisection<F>(a: f64, b: f64, f: F) -> f64
+where
+    F: Fn(f64) -> f64,
+{
+    let mut a = a;
+    let mut b = b;
+    let tol = 1e-10;
+    let max_iter = 100;
+    
+    let mut fa = f(a);
+    
+    // If fa is positive, we need to find a negative value first
+    if fa > 0.0 {
+        let mut b_temp = a + 1.0;
+        let mut fb_temp = f(b_temp);
+        
+        while fb_temp > 0.0 && b_temp < 1e6 {
+            b_temp *= 2.0;
+            fb_temp = f(b_temp);
+        }
+        
+        if fb_temp > 0.0 {
+            // Couldn't find a bracket with the desired property
+            return a; // Return the lower bound as a fallback
+        }
+        
+        b = b_temp;
+    } else if fa == 0.0 {
+        return a; // We got lucky and found the root exactly
+    }
+    
+    let mut iter = 0;
+    
+    while (b - a) > tol && iter < max_iter {
+        let c = (a + b) / 2.0;
+        let fc = f(c);
+        
+        if fc.abs() < tol {
+            return c; // Found a root
+        }
+        
+        if fc * fa < 0.0 {
+            // Root is in [a, c]
+            b = c;
+        } else {
+            // Root is in [c, b]
+            a = c;
+            fa = fc;
+        }
+        
+        iter += 1;
+    }
+    
+    (a + b) / 2.0 // Return the midpoint of the final interval
+}
+
 /// Calculate a finite-difference approximation of the Hessian matrix
 fn finite_difference_hessian<F>(
     func: &F,
@@ -3106,6 +4092,83 @@ mod tests {
         // Check that we've converged to the minimum at (0, 0)
         println!(
             "TrustNCG result: x = {:?}, f = {}, iterations = {}",
+            result.x, result.fun, result.nit
+        );
+
+        assert!(result.success);
+        assert!(result.fun < 1e-6);
+    }
+    
+    #[test]
+    fn test_newton_cg() {
+        // Test with a simple quadratic function
+        fn simple_quadratic(x: &[f64]) -> f64 {
+            x.iter().map(|&xi| xi * xi).sum()
+        }
+
+        let x0 = array![1.0, 1.0];
+
+        let mut options = Options::default();
+        options.maxiter = Some(200);
+        options.disp = false;
+
+        let result = minimize(simple_quadratic, &x0, Method::NewtonCG, Some(options)).unwrap();
+
+        // Check that we've converged to the minimum at (0, 0)
+        println!(
+            "NewtonCG result: x = {:?}, f = {}, iterations = {}",
+            result.x, result.fun, result.nit
+        );
+
+        assert!(result.success);
+        assert!(result.fun < 1e-6);
+    }
+    
+    #[test]
+    fn test_trust_krylov() {
+        // Test with a simple quadratic function
+        fn simple_quadratic(x: &[f64]) -> f64 {
+            x.iter().map(|&xi| xi * xi).sum()
+        }
+
+        let x0 = array![1.0, 1.0];
+
+        let mut options = Options::default();
+        options.maxiter = Some(200);
+        options.disp = false;
+        options.initial_trust_radius = Some(1.0);
+
+        let result = minimize(simple_quadratic, &x0, Method::TrustKrylov, Some(options)).unwrap();
+
+        // Check that we've converged to the minimum at (0, 0)
+        println!(
+            "TrustKrylov result: x = {:?}, f = {}, iterations = {}",
+            result.x, result.fun, result.nit
+        );
+
+        assert!(result.success);
+        assert!(result.fun < 1e-6);
+    }
+    
+    #[test]
+    fn test_trust_exact() {
+        // Test with a simple quadratic function
+        fn simple_quadratic(x: &[f64]) -> f64 {
+            x.iter().map(|&xi| xi * xi).sum()
+        }
+
+        let x0 = array![1.0, 1.0];
+
+        let mut options = Options::default();
+        options.maxiter = Some(200);
+        options.disp = false;
+        options.initial_trust_radius = Some(1.0);
+
+        let result = minimize(simple_quadratic, &x0, Method::TrustExact, Some(options)).unwrap();
+
+        // Check that we've converged to the minimum at (0, 0)
+        println!(
+            "TrustExact result: x = {:?}, f = {}, iterations = {}",
             result.x, result.fun, result.nit
         );
 

@@ -24,6 +24,9 @@ This module provides optimization algorithms similar to SciPy's optimize module.
 - [x] Add L-BFGS-B algorithm for bound-constrained optimization
 - [x] Add L-BFGS algorithm for large-scale optimization
 - [x] Add TrustNCG (Trust-region Newton-Conjugate-Gradient) algorithm
+- [x] Add NewtonCG (Newton-Conjugate-Gradient) algorithm
+- [x] Add TrustKrylov (Trust-region truncated generalized Lanczos / conjugate gradient algorithm)
+- [x] Add TrustExact (Trust-region nearly exact algorithm)
 - [ ] Add more algorithm options and variants
 - [ ] Improve convergence criteria and control
 - [ ] Add more examples and test cases
