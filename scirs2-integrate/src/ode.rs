@@ -4,8 +4,8 @@
 
 use crate::error::{IntegrateError, IntegrateResult};
 use ndarray::{Array1, ArrayView1, ScalarOperand};
-use num_traits::{Float, FromPrimitive};
 use std::fmt::Debug;
+use num_traits::{Float, FromPrimitive};
 
 /// Method options for ODE solvers
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -23,7 +23,7 @@ pub enum ODEMethod {
     /// Backward Differentiation Formula (BDF) method
     /// Implicit method for stiff equations
     /// Default is BDF order 2
-    BDF,
+    Bdf,
     /// Dormand-Prince method of order 8(5,3)
     /// 8th order method with 5th order error estimate
     /// High-accuracy explicit Runge-Kutta method
@@ -157,7 +157,7 @@ pub fn solve_ivp<F, Func>(
     options: Option<ODEOptions<F>>,
 ) -> IntegrateResult<ODEResult<F>>
 where
-    F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign,
+    F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign + std::ops::MulAssign,
     Func: Fn(F, ArrayView1<F>) -> Array1<F>,
 {
     let opts = options.unwrap_or_default();
@@ -191,10 +191,30 @@ where
         ODEMethod::RK4 => rk4_method(f, t_span, y0, h0, opts),
         ODEMethod::RK45 => rk45_method(f, t_span, y0, opts),
         ODEMethod::RK23 => rk23_method(f, t_span, y0, opts),
-        ODEMethod::BDF => bdf_method(f, t_span, y0, opts),
+        ODEMethod::Bdf => bdf_method(f, t_span, y0, opts),
         ODEMethod::DOP853 => dop853_method(f, t_span, y0, opts),
         ODEMethod::Radau => radau_method(f, t_span, y0, opts),
-        ODEMethod::LSODA => lsoda_method(f, t_span, y0, opts),
+        ODEMethod::LSODA => {
+            // For LSODA, use a slightly modified options struct with better defaults
+            // to help users get more stable results
+            let lsoda_opts = ODEOptions {
+                // If h0 not set, use a slightly larger default than other methods
+                h0: opts.h0.or_else(|| {
+                    let span = t_span[1] - t_span[0];
+                    Some(span * F::from_f64(0.05).unwrap()) // 5% of interval instead of default 1%
+                }),
+                // If min_step not set, use reasonable minimum (keeping consistency)
+                min_step: opts.min_step.or_else(|| {
+                    let span = t_span[1] - t_span[0];
+                    // 0.01% of span as default - match the implementation in lsoda_method
+                    Some(span * F::from_f64(0.0001).unwrap())
+                }),
+                // Otherwise use the original options
+                ..opts
+            };
+            
+            lsoda_method(f, t_span, y0, lsoda_opts)
+        },
     }
 }
 
@@ -1286,7 +1306,7 @@ where
         n_rejected: rejected_steps,
         success,
         message,
-        method: ODEMethod::BDF,
+        method: ODEMethod::Bdf,
         final_step: Some(h),
     })
 }
@@ -1474,7 +1494,7 @@ mod tests {
             [0.0, 1.0],
             array![1.0],
             Some(ODEOptions {
-                method: ODEMethod::BDF,
+                method: ODEMethod::Bdf,
                 bdf_order: 2, // BDF2 method
                 ..Default::default()
             }),
@@ -1489,7 +1509,7 @@ mod tests {
         assert_relative_eq!(final_y, exact, epsilon = 1e-6);
 
         // Verify the method used
-        assert_eq!(result.method, ODEMethod::BDF);
+        assert_eq!(result.method, ODEMethod::Bdf);
 
         // Check that message contains Newton iteration info
         assert!(result.message.is_some());
@@ -1640,7 +1660,7 @@ mod tests {
             [0.0, 1.0], // Short integration for test
             array![2.0, 0.0],
             Some(ODEOptions {
-                method: ODEMethod::BDF,
+                method: ODEMethod::Bdf,
                 bdf_order: 2,
                 rtol: 1e-4,
                 atol: 1e-6,
@@ -1965,9 +1985,9 @@ where
     // This improves the computational efficiency of the method
     // TI_real is the first row of TI - we only need this for the algorithm
     let ti_real = [
-        F::from_f64(4.17871859155190428).unwrap(),
+        F::from_f64(4.178_718_591_551_904).unwrap(),
         F::from_f64(0.32768282076106237).unwrap(),
-        F::from_f64(0.52337644549944951).unwrap(),
+        F::from_f64(0.523_376_445_499_449_5).unwrap(),
     ];
     
     // Interpolation coefficients for dense output - not used in this simplified implementation
@@ -2099,7 +2119,7 @@ where
                 // Numerical Jacobian calculation
                 for i in 0..n_dim {
                     let mut y_perturbed = y.clone();
-                    y_perturbed[i] = y_perturbed[i] + eps;
+                    y_perturbed[i] += eps;
                     
                     let f_perturbed = f(t, y_perturbed.view());
                     func_evals += 1;
@@ -2192,7 +2212,7 @@ where
                     for j in i+1..n_dim {
                         b[i] = b[i] - lu[[i, j]] * b[j];
                     }
-                    b[i] = b[i] / lu[[i, i]];
+                    b[i] /= lu[[i, i]];
                 }
             };
             
@@ -2217,7 +2237,7 @@ where
                     // Current trial value is y + Z[i]
                     let mut y_stage = y.clone();
                     for j in 0..n_dim {
-                        y_stage[j] = y_stage[j] + z[[i, j]];
+                        y_stage[j] += z[[i, j]];
                     }
                     
                     // Evaluate function at this stage
@@ -2312,7 +2332,7 @@ where
                         if i == 0 {
                             z[[i, j]] = F::from_f64(0.09443876248897524).unwrap() * w[j];
                         } else if i == 1 {
-                            z[[i, j]] = F::from_f64(0.25021312296533332).unwrap() * w[j];
+                            z[[i, j]] = F::from_f64(0.250_213_122_965_333_3).unwrap() * w[j];
                         } else {
                             z[[i, j]] = w[j];
                         }
@@ -2526,7 +2546,7 @@ enum LsodaMethodType {
     /// Adams method (explicit, non-stiff)
     Adams,
     /// BDF method (implicit, stiff)
-    BDF,
+    Bdf,
 }
 
 /// State information for the LSODA integrator
@@ -2550,6 +2570,9 @@ struct LsodaState<F: Float> {
     /// Method switching statistics
     stiff_to_nonstiff_switches: usize,
     nonstiff_to_stiff_switches: usize,
+    /// Number of consecutive steps with the current method
+    /// Used to prevent rapid oscillation between methods
+    consecutive_method_steps: usize,
     /// Function evaluations
     func_evals: usize,
     /// Steps taken
@@ -2577,7 +2600,7 @@ enum StepResult<F: Float> {
     ShouldSwitch,
 }
 
-impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign> LsodaState<F> {
+impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign + std::ops::MulAssign> LsodaState<F> {
     /// Create a new LSODA state
     fn new(t: F, y0: Array1<F>, dy0: Array1<F>, h: F) -> Self {
         Self {
@@ -2591,6 +2614,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             jacobian: None,
             stiff_to_nonstiff_switches: 0,
             nonstiff_to_stiff_switches: 0,
+            consecutive_method_steps: 0,  // Initialize to 0
             func_evals: 0,
             steps: 0,
             accepted_steps: 0,
@@ -2732,30 +2756,49 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             y_corr[j] += self.h * dy_corr;
         }
         
-        // Step 3: Error estimation
+        // Step 3: Error estimation with additional safeguards
         let error_coeff = error_coeffs[current_order - 1];
         let mut error_norm = F::zero();
         for j in 0..self.y.len() {
+            // Apply a bias toward accepting steps when close to tolerance
             let error = (y_corr[j] - y_pred[j]).abs() * error_coeff;
             let scale = opts.atol + opts.rtol * self.y[j].abs().max(y_corr[j].abs());
-            error_norm = error_norm.max(error / scale);
+            
+            // Clamp extremely small scales to avoid division by near-zero
+            let safe_scale = scale.max(F::from_f64(1e-10).unwrap());
+            let norm_term = error / safe_scale;
+            
+            // Avoid accumulating extremely large errors from single components
+            // This prevents a single outlier from causing step size collapse
+            let clamped_norm = norm_term.min(F::from_f64(100.0).unwrap());
+            error_norm = error_norm.max(clamped_norm);
         }
         
-        // Step 4: Step size control
-        let safety = F::from_f64(0.9).unwrap();
-        let min_factor = F::from_f64(0.2).unwrap();
-        let max_factor = F::from_f64(5.0).unwrap();
+        // Step 4: More robust step size control
+        let safety = F::from_f64(0.9).unwrap(); // Safety factor to reduce step size
         
-        // Now we use the error to calculate a new step size
-        let factor = safety * (F::one() / error_norm).powf(F::one() / F::from_usize(current_order + 1).unwrap());
-        let factor = factor.max(min_factor).min(max_factor);
+        // Use more conservative bounds for step size changes
+        // This prevents extreme step size reductions that can cause problems
+        let min_factor = F::from_f64(0.25).unwrap(); // Never reduce by more than 4x
+        let max_factor = F::from_f64(4.0).unwrap();  // Never increase by more than 4x
+        
+        // Use a more conservative formula for very large errors
+        let power = F::one() / F::from_usize(current_order + 1).unwrap();
+        let factor = if error_norm > F::from_f64(10.0).unwrap() {
+            // For large errors, use a more aggressive step size reduction
+            // but with a minimum to prevent extreme reductions
+            min_factor
+        } else {
+            // Normal PI controller formula for step size
+            safety * (F::one() / error_norm).powf(power).max(min_factor).min(max_factor)
+        };
         
         // Step 5: Accept or reject step
         if error_norm <= F::one() {
             // Accept step, return corrector value
             self.last_h = Some(self.h);
             self.last_error_norm = Some(error_norm);
-            self.h = self.h * factor;
+            self.h *= factor;
             
             // If we're making good progress, consider increasing order
             if current_order < ab_coeffs.len() - 1 && error_norm < F::from_f64(0.5).unwrap() {
@@ -2777,6 +2820,18 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             let approximate_min_step = t_scale * F::from_f64(1e-6).unwrap();
             
             if new_h < approximate_min_step {
+                // Print diagnostic information - convert to f64 for printing
+                eprintln!(
+                    "Adams step size getting too small: new_h={:.2e} < approx_min={:.2e}, t={:.4}, factor={:.2e}, error_norm={:.2e}, rejected={}, order={}",
+                    new_h.to_f64().unwrap_or(0.0), 
+                    approximate_min_step.to_f64().unwrap_or(0.0), 
+                    self.t.to_f64().unwrap_or(0.0), 
+                    factor.to_f64().unwrap_or(0.0), 
+                    error_norm.to_f64().unwrap_or(0.0), 
+                    self.rejected_steps, 
+                    current_order
+                );
+                
                 // Step size getting very small - this problem might be stiff
                 // Better to switch methods than continue reducing step size
                 return StepResult::ShouldSwitch;
@@ -2863,14 +2918,23 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             }
         }
         
-        // 2. Solve the implicit equation using Newton iteration
-        let newton_maxiter = 8;
-        let newton_tol = F::from_f64(0.1).unwrap() * 
-                         (opts.rtol * F::from_f64(0.1).unwrap() + opts.atol);
+        // 2. Solve the implicit equation using Newton iteration with better parameters
+        let newton_maxiter = 10;  // Allow more iterations to achieve convergence
+        
+        // Use a more reasonable tolerance for Newton iteration
+        // This allows lower accuracy initially but requires more convergence later
+        let newton_tol = F::from_f64(0.01).unwrap() * 
+                         (opts.rtol + opts.atol); // Less stringent tolerance
         
         let mut converged = false;
         let mut iter_count = 0;
+        
+        // Use a better initial guess - we average the predicted value with the
+        // previous solution to get a more stable starting point
         let mut y_new = y_pred.clone();
+        for j in 0..self.y.len() {
+            y_new[j] = F::from_f64(0.5).unwrap() * (y_new[j] + self.y[j]);
+        }
         
         // Newton iteration loop
         while iter_count < newton_maxiter && !converged {
@@ -2928,23 +2992,126 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                 self.jacobian = Some(Array1::from(jac_data));
             }
             
-            // Solve linear system J*dx = residual (simplified)
-            // In a full implementation, we'd use proper linear solver
+            // Solve linear system J*dx = residual with improved algorithm
+            // Better solver with enhanced stability and accuracy
             let mut dx = residual.clone();
             
-            // For now, we'll do a simple approximation with diagonal Jacobian
-            // This is a gross simplification and would need to be replaced
-            // with a proper linear solver in the full implementation
-            for j in 0..self.y.len() {
-                let jac_diag_idx = j * self.y.len() + j;
-                if let Some(jac) = &self.jacobian {
-                    if jac_diag_idx < jac.len() {
-                        dx[j] /= jac[jac_diag_idx];
+            if let Some(jac) = &self.jacobian {
+                let n = self.y.len();
+                
+                // Only display warning for slow convergence (less frequently to avoid console spam)
+                if iter_count > 4 && iter_count % 2 == 0 {
+                    eprintln!("BDF Newton iteration struggling: t={:.4}, iter={}", 
+                              self.t.to_f64().unwrap_or(0.0), iter_count);
+                }
+                
+                if n == 1 {
+                    // For 1D problems, use direct division with safety checks
+                    let diag_val = jac[0];
+                    
+                    // Safeguard against near-zero diagonal values
+                    if diag_val.abs() > F::from_f64(1e-12).unwrap() {
+                        dx[0] /= diag_val;
                     } else {
-                        dx[j] /= F::one(); // Fallback
+                        // Use a safe value for very small entries
+                        let safe_val = F::from_f64(1e-8).unwrap().max(diag_val.abs());
+                        // Keep the sign of the original diagonal
+                        let safe_diag = if diag_val < F::zero() { -safe_val } else { safe_val };
+                        dx[0] /= safe_diag;
+                    }
+                } else if n == 2 {
+                    // For 2D systems (very common), use a full 2x2 solver when appropriate
+                    let j00 = jac[0];
+                    let j01 = jac[1];
+                    let j10 = jac[2];
+                    let j11 = jac[3];
+                    
+                    // Calculate the determinant to check if system is well-conditioned
+                    let det = j00 * j11 - j01 * j10;
+                    
+                    // If determinant is reasonable, solve full 2x2 system
+                    if det.abs() > F::from_f64(1e-10).unwrap() {
+                        // 2x2 linear system solution
+                        let x0 = (j11 * dx[0] - j01 * dx[1]) / det;
+                        let x1 = (-j10 * dx[0] + j00 * dx[1]) / det;
+                        dx[0] = x0;
+                        dx[1] = x1;
+                    } else {
+                        // Fallback to safer diagonal approach for poorly conditioned systems
+                        for i in 0..n {
+                            let jac_diag_idx = i * n + i;
+                            let diag_val = jac[jac_diag_idx];
+                            
+                            // Ensure diagonal is not too close to zero
+                            if diag_val.abs() > F::from_f64(1e-12).unwrap() {
+                                dx[i] /= diag_val;
+                            } else {
+                                // Use a minimum value to prevent division by very small numbers
+                                let safe_val = F::from_f64(1e-8).unwrap();
+                                // Preserve sign
+                                dx[i] /= safe_val * diag_val.signum();
+                            }
+                        }
                     }
                 } else {
-                    dx[j] /= F::one(); // Fallback
+                    // For higher dimensions, use improved diagonal solver with damping
+                    // This is a basic approximation, but better than the original
+                    for i in 0..n {
+                        let jac_diag_idx = i * n + i;
+                        
+                        if jac_diag_idx < jac.len() {
+                            let diag_val = jac[jac_diag_idx];
+                            
+                            // Ensure diagonal is not too close to zero
+                            if diag_val.abs() > F::from_f64(1e-12).unwrap() {
+                                dx[i] /= diag_val;
+                            } else {
+                                // Only warn on extreme cases to avoid console spam
+                                if diag_val.abs() < F::from_f64(1e-15).unwrap() {
+                                    eprintln!("BDF linear solver warning: near-zero diagonal at t={:.4}, i={}", 
+                                            self.t.to_f64().unwrap_or(0.0), i);
+                                }
+                                
+                                // Use a minimum value to prevent division by very small numbers
+                                let safe_val = F::from_f64(1e-8).unwrap();
+                                // Preserve sign
+                                dx[i] /= safe_val * if diag_val == F::zero() { F::one() } else { diag_val.signum() };
+                            }
+                        } else {
+                            dx[i] /= F::one();
+                        }
+                    }
+                }
+                
+                // Apply damping to improve convergence (stronger damping for later iterations)
+                let damping = if iter_count > 5 {
+                    // For struggling iterations, use stronger damping
+                    F::from_f64(0.6).unwrap()
+                } else if iter_count > 2 {
+                    // Moderate damping for middle iterations
+                    F::from_f64(0.8).unwrap()
+                } else {
+                    // Minimal damping for early iterations
+                    F::from_f64(0.9).unwrap()
+                };
+                
+                // Apply damping
+                if iter_count > 0 {
+                    for i in 0..n {
+                        dx[i] *= damping;
+                    }
+                }
+            } else {
+                // Fallback using scaled Newton iteration with damping
+                let damping = F::from_f64(0.5).unwrap();
+                for i in 0..dx.len() {
+                    dx[i] = -dx[i] * damping;
+                }
+                
+                // Only warn once
+                if iter_count == 0 {
+                    eprintln!("BDF warning: No Jacobian available at t={:.4}", 
+                            self.t.to_f64().unwrap_or(0.0));
                 }
             }
             
@@ -2953,14 +3120,38 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                 y_new[j] -= dx[j];
             }
             
-            // Check convergence
+            // Check convergence with improved criteria
             let mut dx_norm = F::zero();
+            let mut max_rel_change = F::zero();
+            
             for j in 0..self.y.len() {
+                // Scale based on both tolerance and current solution magnitude
                 let scale = opts.atol + opts.rtol * y_new[j].abs();
-                dx_norm = dx_norm.max(dx[j].abs() / scale);
+                let scaled_dx = dx[j].abs() / scale;
+                
+                // Keep track of maximum scaled change
+                dx_norm = dx_norm.max(scaled_dx);
+                
+                // Also track relative change for components that are not near zero
+                if y_new[j].abs() > opts.atol * F::from_f64(10.0).unwrap() {
+                    let rel_change = dx[j].abs() / y_new[j].abs();
+                    max_rel_change = max_rel_change.max(rel_change);
+                }
             }
             
-            if dx_norm < newton_tol {
+            // More robust convergence criteria - require EITHER scaled norm OR relative change to be small
+            // Use adaptive tolerance that gets tighter in later iterations
+            let iteration_factor = if iter_count > 5 {
+                // For many iterations, require tighter convergence
+                F::from_f64(0.5).unwrap()
+            } else {
+                F::one()
+            };
+            
+            let dx_converged = dx_norm < newton_tol * iteration_factor;
+            let rel_converged = max_rel_change < F::from_f64(0.01).unwrap() * iteration_factor;
+            
+            if dx_converged || rel_converged {
                 converged = true;
             }
             
@@ -2983,6 +3174,17 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             let approximate_min_step = t_scale * F::from_f64(1e-6).unwrap();
             
             if new_h < approximate_min_step {
+                // Print diagnostic information for Newton convergence failure - convert to f64
+                eprintln!(
+                    "BDF Newton convergence failed: new_h={:.2e} < approx_min={:.2e}, t={:.4}, reduction_factor={:.2e}, rejected={}, iter_count={}",
+                    new_h.to_f64().unwrap_or(0.0), 
+                    approximate_min_step.to_f64().unwrap_or(0.0), 
+                    self.t.to_f64().unwrap_or(0.0), 
+                    reduction_factor.to_f64().unwrap_or(0.0), 
+                    self.rejected_steps, 
+                    iter_count
+                );
+                
                 // We're getting too small, try switching methods instead
                 // of reducing further
                 return StepResult::ShouldSwitch;
@@ -3003,33 +3205,85 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
         let _dy_new = f(self.t + self.h, y_new.view());
         self.func_evals += 1;
         
-        // For error estimation, we can use the difference between
-        // predicted and corrected values
+        // Enhanced error estimation with more robust handling
+        // Use a combination of predicted-corrected difference and truncation error
         let mut error_norm = F::zero();
         let error_coeff = error_coeffs[current_order - 1];
         
-        for j in 0..self.y.len() {
-            let error = (y_new[j] - y_pred[j]).abs() * error_coeff;
-            let scale = opts.atol + opts.rtol * y_new[j].abs().max(self.y[j].abs());
-            error_norm = error_norm.max(error / scale);
+        // For multi-component systems, estimate relative importance of each component
+        let n = self.y.len();
+        let has_multiple_components = n > 1;
+        
+        // Simple method to detect if certain components should be weighted more
+        let mut max_component = F::zero();
+        if has_multiple_components {
+            for j in 0..n {
+                max_component = max_component.max(y_new[j].abs());
+            }
         }
         
-        // Step size control
-        let safety = F::from_f64(0.9).unwrap();
-        let min_factor = F::from_f64(0.2).unwrap();
-        let max_factor = F::from_f64(5.0).unwrap();
+        for j in 0..n {
+            // Calculate error with appropriate scaling
+            let error = (y_new[j] - y_pred[j]).abs() * error_coeff;
+            
+            // Use a blend of absolute tolerance and relative tolerance
+            // Based on both current and previous solution values
+            let scale = opts.atol + opts.rtol * y_new[j].abs().max(self.y[j].abs());
+            
+            // Prevent division by very small values
+            let safe_scale = scale.max(F::from_f64(1e-10).unwrap());
+            
+            // Weight components in multi-component systems
+            let mut norm_term = error / safe_scale;
+            
+            // For multi-component systems, consider relative importance
+            if has_multiple_components && max_component > F::from_f64(1e-6).unwrap() {
+                let component_weight = (y_new[j].abs() / max_component).max(F::from_f64(0.1).unwrap());
+                norm_term *= component_weight;
+            }
+            
+            // Prevent a single component from causing step size collapse
+            // Use more careful clamping based on error magnitude
+            let clamped_norm = if norm_term > F::from_f64(10.0).unwrap() {
+                // For very large errors, use logarithmic clamping to avoid extreme values
+                F::from_f64(10.0).unwrap() + norm_term.ln()
+            } else {
+                // Normal case - no clamping needed
+                norm_term
+            };
+            
+            error_norm = error_norm.max(clamped_norm);
+        }
         
-        // Calculate factor for next step size
+        // More robust step size control for BDF method
+        let safety = F::from_f64(0.9).unwrap();
+        
+        // More conservative limits for BDF, which can struggle with stiff problems
+        let min_factor = F::from_f64(0.3).unwrap(); // Never reduce by more than ~3x
+        let max_factor = F::from_f64(3.0).unwrap(); // More conservative growth
+        
+        // Use a more conservative formula for large errors
         let order_float = F::from_usize(current_order).unwrap();
-        let factor = safety * (F::one() / error_norm).powf(F::one() / (order_float + F::one()));
-        let factor = factor.max(min_factor).min(max_factor);
+        let power = F::one() / (order_float + F::one());
+        
+        let factor = if error_norm > F::from_f64(10.0).unwrap() {
+            // For large errors, limit reduction to prevent step size collapse
+            min_factor
+        } else if error_norm < F::from_f64(0.01).unwrap() {
+            // For very small errors, be more conservative about growth
+            let conservative_factor = safety * (F::one() / error_norm).powf(power * F::from_f64(0.5).unwrap());
+            conservative_factor.max(min_factor).min(max_factor)
+        } else {
+            // Normal case
+            safety * (F::one() / error_norm).powf(power).max(min_factor).min(max_factor)
+        };
         
         // Accept or reject step
         if error_norm <= F::one() {
             // Accept step
             self.last_h = Some(self.h);
             self.last_error_norm = Some(error_norm);
-            self.h = self.h * factor;
+            self.h *= factor;
             
             // Order control
             if current_order < bdf_coeffs.len() - 1 && error_norm < F::from_f64(0.5).unwrap() {
@@ -3051,6 +3305,18 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             let approximate_min_step = t_scale * F::from_f64(1e-6).unwrap();
             
             if new_h < approximate_min_step {
+                // Print diagnostic information for BDF error estimation issues - convert to f64
+                eprintln!(
+                    "BDF error estimation issues: new_h={:.2e} < approx_min={:.2e}, t={:.4}, factor={:.2e}, error_norm={:.2e}, rejected={}, order={}",
+                    new_h.to_f64().unwrap_or(0.0), 
+                    approximate_min_step.to_f64().unwrap_or(0.0), 
+                    self.t.to_f64().unwrap_or(0.0), 
+                    factor.to_f64().unwrap_or(0.0), 
+                    error_norm.to_f64().unwrap_or(0.0), 
+                    self.rejected_steps, 
+                    current_order
+                );
+                
                 // If even BDF is having trouble with small steps,
                 // try a different approach or give up
                 if self.rejected_steps > 3 {
@@ -3073,16 +3339,19 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
     
     /// Switch method type
     fn switch_method(&mut self, new_method: LsodaMethodType) {
-        if self.method_type == LsodaMethodType::Adams && new_method == LsodaMethodType::BDF {
+        if self.method_type == LsodaMethodType::Adams && new_method == LsodaMethodType::Bdf {
             self.nonstiff_to_stiff_switches += 1;
-        } else if self.method_type == LsodaMethodType::BDF && new_method == LsodaMethodType::Adams {
+        } else if self.method_type == LsodaMethodType::Bdf && new_method == LsodaMethodType::Adams {
             self.stiff_to_nonstiff_switches += 1;
         }
         
         // Reset order and potentially step size when switching
         self.order = 1;
-        self.h = self.h * F::from_f64(0.5).unwrap(); // Conservative restart
+        self.h *= F::from_f64(0.5).unwrap(); // Conservative restart
         self.jacobian = None; // Reset Jacobian when switching methods
+        
+        // Reset consecutive steps counter when switching methods
+        self.consecutive_method_steps = 0;
         
         self.method_type = new_method;
     }
@@ -3126,7 +3395,7 @@ fn lsoda_method<F, Func>(
     opts: ODEOptions<F>,
 ) -> IntegrateResult<ODEResult<F>>
 where
-    F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign,
+    F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign + std::ops::MulAssign,
     Func: Fn(F, ArrayView1<F>) -> Array1<F>,
 {
     // Note: This is a developing implementation with partial functionality.
@@ -3144,9 +3413,10 @@ where
     
     // Ensure initial step is within bounds
     let max_step = opts.max_step.unwrap_or_else(|| t_end - t_start);
-    // Use a larger minimum step than other methods to avoid step size issues
+    // Use the user's minimum step or a reasonable default if not provided
     let min_step = opts.min_step.unwrap_or_else(|| {
-        (t_end - t_start) * F::from_f64(1e-6).unwrap() // Larger min step for stability
+        // Default is 0.01% of span - find balance between too large and too small
+        (t_end - t_start) * F::from_f64(0.0001).unwrap() 
     });
     
     let h = h0.min(max_step).max(min_step);
@@ -3154,10 +3424,13 @@ where
     // Initial evaluation of the function
     let dy0 = f(t_start, y0.view());
     
-    // Initialize LSODA state
+    // Initialize LSODA state with more robust settings
     let mut state = LsodaState::new(t_start, y0, dy0, h);
     
-    // Main integration loop
+    // Adaptive step size floor - start with min_step but may increase
+    let mut adaptive_min_step = min_step;
+    
+    // Main integration loop with improved stability features
     while state.t < t_end && state.steps < opts.max_steps {
         state.steps += 1;
         
@@ -3166,44 +3439,75 @@ where
             state.h = t_end - state.t;
         }
         
-        // Check if step size is too small
-        if state.h < min_step {
-            // Much more aggressive recovery strategy:
-            // 1. Always set to min_step (much larger now)
-            // 2. Always use BDF for stiff problems
-            // 3. Only fail after many more attempts
-            // 4. Reset order to 1 to simplify solution
+        // Check if step size is too small with enhanced recovery strategies
+        if state.h < adaptive_min_step {
+            // Print diagnostic information - convert to f64 for printing
+            let diagnostic_info = format!(
+                "LSODA step size too small: h={:.2e} < min_step={:.2e}, t={:.4}, steps={}, accepted_steps={}, rejected_steps={}, method={:?}, order={}",
+                state.h.to_f64().unwrap_or(0.0),
+                adaptive_min_step.to_f64().unwrap_or(0.0),
+                state.t.to_f64().unwrap_or(0.0),
+                state.steps,
+                state.accepted_steps,
+                state.rejected_steps,
+                state.method_type,
+                state.order
+            );
             
-            // If we've been struggling for many steps, only then fail
-            if state.rejected_steps > 15 {
-                return Err(IntegrateError::ValueError(
-                    format!("Step size too small in LSODA method, steps taken={}",
-                            state.steps)
-                ));
-            }
+            // Enhanced recovery strategy:
+            // 1. Use progressively larger min_step thresholds if we keep having issues
+            // 2. Always use BDF for stiff problems, but reset BDF if it's struggling
+            // 3. Try artificial 'push forward' if we're stuck
+            // 4. Only fail after many more attempts with different tactics
             
-            // Enforce the minimum step size (should be larger in user code)
-            state.h = min_step;
+            // If we've been struggling for many steps with different methods, then fail
+            if state.rejected_steps > 15 && state.accepted_steps < 3 {
+                // Before giving up, try one last approach - artificially increase the
+                // minimum step size significantly to force progress
+                if adaptive_min_step < min_step * F::from_f64(100.0).unwrap() {
+                    adaptive_min_step *= F::from_f64(10.0).unwrap();
+                    state.h = adaptive_min_step;
+                    
+                    // For a hard reset, try switching methods again
+                    if state.method_type == LsodaMethodType::Adams {
+                        state.switch_method(LsodaMethodType::Bdf);
+                    } else {
+                        // If already using BDF, reset its state and parameters
+                        state.order = 1;
+                        state.h = adaptive_min_step;
+                        state.jacobian = None; // Force Jacobian recalculation
+                    }
+                } else {
+                    // If we've already tried with much larger min_step, finally give up
+                    return Err(IntegrateError::ValueError(
+                        format!("Step size too small in LSODA method, steps taken={}.\nDiagnostic info: {}",
+                                state.steps, diagnostic_info)
+                    ));
+                }
+            } else {
+                // Enforce the minimum step size (may change adaptively)
+                state.h = adaptive_min_step;
             
-            // Reset the order to simplify solution process
-            state.order = 1;
-            
-            // Clear some history to prevent issues with past data
-            if state.history.len() > 2 {
-                let last_two = state.history.len() - 2;
-                state.history.drain(0..last_two);
-            }
-            
-            // Always switch to BDF method for very small steps
-            if state.method_type == LsodaMethodType::Adams {
-                state.switch_method(LsodaMethodType::BDF);
+                // Reset the order to simplify solution process
+                state.order = 1;
+                
+                // Clear some history to prevent issues with past data
+                if state.history.len() > 2 {
+                    let last_two = state.history.len() - 2;
+                    state.history.drain(0..last_two);
+                }
+                
+                // Always switch to BDF method for very small steps
+                if state.method_type == LsodaMethodType::Adams {
+                    state.switch_method(LsodaMethodType::Bdf);
+                }
             }
         }
         
         // Take step with current method
         let step_result = match state.method_type {
             LsodaMethodType::Adams => state.adams_step(&f, &opts),
-            LsodaMethodType::BDF => state.bdf_step(&f, &opts)
+            LsodaMethodType::Bdf => state.bdf_step(&f, &opts)
         };
         
         // Process step result
@@ -3233,20 +3537,8 @@ where
                 
                 state.accepted_steps += 1;
                 
-                // Check for method switching based on simple heuristics instead of the more complex stiffness detector
-                let relative_step = state.h / state.t.abs().max(F::one());
-                
-                // Simple stiffness detection based on relative step size and rejected steps
-                let is_stiff = relative_step < F::from_f64(0.01).unwrap() || state.rejected_steps > 3;
-                let is_nonstiff = relative_step > F::from_f64(0.1).unwrap() && state.accepted_steps > 5;
-                
-                if state.method_type == LsodaMethodType::Adams && is_stiff {
-                    // Switch from non-stiff to stiff method
-                    state.switch_method(LsodaMethodType::BDF);
-                } else if state.method_type == LsodaMethodType::BDF && is_nonstiff {
-                    // Switch from stiff to non-stiff method
-                    state.switch_method(LsodaMethodType::Adams);
-                }
+                // Counter for consecutive steps with the same method
+                state.consecutive_method_steps += 1;
             },
             StepResult::Rejected => {
                 // Step was rejected - continue with smaller step size
@@ -3256,11 +3548,102 @@ where
                 // Method is struggling - try the other method
                 match state.method_type {
                     LsodaMethodType::Adams => {
-                        state.switch_method(LsodaMethodType::BDF);
+                        state.switch_method(LsodaMethodType::Bdf);
                     },
-                    LsodaMethodType::BDF => {
+                    LsodaMethodType::Bdf => {
                         state.switch_method(LsodaMethodType::Adams);
                     }
+                }
+            }
+        }
+        
+        // Consider method switching after a successful step
+        // But only if we've been using the same method for a while to prevent oscillation
+        // Significantly increased threshold to 100 steps to further reduce oscillation
+        if state.consecutive_method_steps >= 100 {
+            // Enhanced stiffness detection with conservative thresholds
+            let relative_step = state.h / state.t.abs().max(F::one());
+            
+            // Calculate efficiency metrics
+            let acceptance_ratio = if state.rejected_steps == 0 {
+                // If no rejected steps, we're doing great
+                F::from_f64(10.0).unwrap()
+            } else {
+                // Calculate ratio of accepted to rejected steps
+                F::from_usize(state.accepted_steps).unwrap() / 
+                F::from_usize(state.rejected_steps).unwrap()
+            };
+            
+            // Calculate recent rejection rate - more useful than overall ratio
+            // Focus on recent history (last 20-30 steps)
+            let recent_total_steps = (state.accepted_steps + state.rejected_steps).min(30);
+            let recent_rejection_rate = if recent_total_steps > 0 {
+                F::from_usize(state.rejected_steps.min(recent_total_steps)).unwrap() / 
+                F::from_usize(recent_total_steps).unwrap()
+            } else {
+                F::zero()
+            };
+            
+            // Method switching heuristics with extreme hysteresis
+            // to prevent oscillation between methods
+            
+            // For Adams method (non-stiff)
+            if state.method_type == LsodaMethodType::Adams {
+                // Use multiple very clear stiffness indicators for switching from Adams to BDF
+                // Require at least two of these conditions to be met
+                let condition_count = 
+                    // Very small step size relative to t
+                    (if relative_step < F::from_f64(0.001).unwrap() { 1 } else { 0 }) +
+                    // High recent rejection rate
+                    (if recent_rejection_rate > F::from_f64(0.5).unwrap() { 1 } else { 0 }) +
+                    // Very inefficient progress
+                    (if state.rejected_steps > 15 && acceptance_ratio < F::from_f64(0.3).unwrap() { 1 } else { 0 }) + 
+                    // Consistently near min step
+                    (if state.accepted_steps > 30 && state.h < adaptive_min_step * F::from_f64(1.2).unwrap() { 1 } else { 0 });
+                    
+                // Require at least 2 clear indicators of stiffness
+                if condition_count >= 2 {
+                    // Switch to BDF (stiff solver) with diagnostic
+                    println!(
+                        "LSODA: Switching to BDF method at t={:.4}. Relative step={:.2e}, acceptance ratio={:.2}, consecutive steps with Adams={}",
+                        state.t.to_f64().unwrap_or(0.0),
+                        relative_step.to_f64().unwrap_or(0.0),
+                        acceptance_ratio.to_f64().unwrap_or(0.0),
+                        state.consecutive_method_steps
+                    );
+                    
+                    // Use a slightly larger step when switching to BDF
+                    state.h *= F::from_f64(1.5).unwrap();
+                    state.switch_method(LsodaMethodType::Bdf);
+                }
+            } 
+            // For BDF method (stiff)
+            else if state.method_type == LsodaMethodType::Bdf {
+                // Extremely conservative about switching away from BDF
+                // ALL conditions must be met to switch back to non-stiff
+                let should_switch = 
+                    // Require very large relative steps to switch back (extreme hysteresis)
+                    (relative_step > F::from_f64(0.1).unwrap()) && 
+                    // Require very efficient integration
+                    (acceptance_ratio > F::from_f64(8.0).unwrap()) && 
+                    // Very low recent rejection rate
+                    (recent_rejection_rate < F::from_f64(0.05).unwrap()) &&
+                    // Require many accepted steps
+                    (state.accepted_steps > 50) &&
+                    // Avoid switching if anywhere near the minimum step
+                    (state.h > adaptive_min_step * F::from_f64(20.0).unwrap());
+                
+                if should_switch {
+                    // Switch to Adams method with diagnostic
+                    println!(
+                        "LSODA: Switching to Adams method at t={:.4}. Relative step={:.2e}, acceptance ratio={:.2}, consecutive steps with BDF={}",
+                        state.t.to_f64().unwrap_or(0.0),
+                        relative_step.to_f64().unwrap_or(0.0),
+                        acceptance_ratio.to_f64().unwrap_or(0.0),
+                        state.consecutive_method_steps
+                    );
+                    
+                    state.switch_method(LsodaMethodType::Adams);
                 }
             }
         }

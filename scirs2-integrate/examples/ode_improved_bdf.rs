@@ -13,7 +13,7 @@ fn main() {
     
     // Solve with BDF method (use more conservative settings)
     let options = ODEOptions {
-        method: ODEMethod::BDF,
+        method: ODEMethod::Bdf,
         bdf_order: 1,           // BDF1 method (more stable)
         rtol: 1e-3,            // Less strict tolerance
         atol: 1e-6,
@@ -57,7 +57,7 @@ fn main() {
             
             // Solve with BDF method (good for stiff problems)
             let options = ODEOptions {
-                method: ODEMethod::BDF,
+                method: ODEMethod::Bdf,
                 bdf_order: 1,   // BDF1 method (more stable)
                 rtol: 1e-3,     // Less strict tolerances
                 atol: 1e-6,

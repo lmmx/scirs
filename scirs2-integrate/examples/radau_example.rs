@@ -105,7 +105,7 @@ fn main() {
         [0.0, 3.0],
         array![2.0, 0.0],
         Some(ODEOptions {
-            method: ODEMethod::BDF,
+            method: ODEMethod::Bdf,
             rtol: 1e-3,
             atol: 1e-6,
             h0: Some(0.01),

@@ -164,7 +164,7 @@ fn main() {
         ("RK23", ODEMethod::RK23),
         ("RK45", ODEMethod::RK45),
         ("DOP853", ODEMethod::DOP853),
-        ("BDF", ODEMethod::BDF),
+        ("BDF", ODEMethod::Bdf),
         ("Radau (experimental)", ODEMethod::Radau),
         ("LSODA (experimental)", ODEMethod::LSODA),
     ];
