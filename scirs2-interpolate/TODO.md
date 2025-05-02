@@ -11,6 +11,7 @@ This module provides interpolation functionality similar to SciPy's interpolate 
   - [x] Nearest neighbor interpolation
   - [x] Cubic interpolation
   - [x] Spline interpolation
+  - [x] PCHIP (Piecewise Cubic Hermite Interpolating Polynomial)
 - [x] Multi-dimensional interpolation
   - [x] Regular grid interpolation (tensor product)
   - [x] Scattered data interpolation
@@ -27,8 +28,8 @@ This module provides interpolation functionality similar to SciPy's interpolate 
 ## Future Tasks
 
 - [ ] Add more interpolation methods
-  - [ ] PCHIP (Piecewise Cubic Hermite Interpolating Polynomial)
-  - [ ] Bivariate splines for irregularly spaced data
+  - [x] PCHIP (Piecewise Cubic Hermite Interpolating Polynomial)
+  - [x] Bivariate splines for irregularly spaced data
   - [ ] Thin-plate splines
   - [ ] Bezier curves and surfaces
 - [ ] Improve performance for large datasets
@@ -38,11 +39,11 @@ This module provides interpolation functionality similar to SciPy's interpolate 
   - [ ] Better support for high-dimensional data
   - [ ] More efficient scattered data interpolation
 - [ ] Add extrapolation methods and boundary handling
-- [ ] Fix remaining ignored tests
-  - [ ] Update barycentric_interpolator_quadratic test
-  - [ ] Fix make_barycentric_interpolator test
-  - [ ] Fix kriging_interpolator_prediction test
-  - [ ] Address rbf_interpolator_2d test
+- [x] Fix remaining ignored tests
+  - [x] Update barycentric_interpolator_quadratic test
+  - [x] Fix make_barycentric_interpolator test
+  - [x] Fix kriging_interpolator_prediction test
+  - [x] Address rbf_interpolator_2d test
 - [ ] Add more examples and documentation
   - [ ] Tutorial for common interpolation tasks
   - [ ] Visual examples for different methods

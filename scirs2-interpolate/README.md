@@ -17,6 +17,7 @@ The `scirs2-interpolate` crate provides a comprehensive set of interpolation met
   - Natural cubic splines
   - Not-a-knot cubic splines
   - Akima splines (robust to outliers)
+  - PCHIP (Piecewise Cubic Hermite Interpolating Polynomial) for shape preservation
 
 - **Multi-dimensional Interpolation**
   - Regular grid interpolation
@@ -249,6 +250,29 @@ let spline = make_akima_spline(&x.view(), &y.view()).unwrap();
 for x_val in [1.5, 2.5, 3.5, 4.5].iter() {
     println!("Akima spline at x={}: {}", x_val, spline.evaluate(*x_val).unwrap());
 }
+```
+
+### PCHIP Interpolation (Shape Preserving)
+
+```rust
+use ndarray::array;
+use scirs2_interpolate::{pchip_interpolate, PchipInterpolator};
+
+// Monotonically increasing data
+let x = array![0.0, 1.0, 2.0, 3.0, 4.0];
+let y = array![0.0, 1.0, 4.0, 9.0, 16.0];
+
+// Using the convenience function
+let x_new = array![0.5, 1.5, 2.5, 3.5];
+let y_interp = pchip_interpolate(&x.view(), &y.view(), &x_new.view()).unwrap();
+println!("PCHIP interpolated values: {:?}", y_interp);
+
+// Or create an interpolator object for more control
+let interp = PchipInterpolator::new(&x.view(), &y.view()).unwrap();
+let y_at_point = interp.evaluate(2.5).unwrap();
+println!("PCHIP value at x=2.5: {}", y_at_point);
+
+// PCHIP preserves monotonicity of the data, unlike cubic spline which may introduce oscillations
 ```
 
 ### Tensor Product Interpolation
