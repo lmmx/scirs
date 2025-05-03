@@ -566,6 +566,7 @@ where
 }
 
 /// Helper function for line search in Powell's method
+/// One‑dimensional minimisation along `x + α·direction`.
 fn line_search_powell<F>(
     func: F,
     x: &Array1<f64>,
@@ -582,103 +583,101 @@ where
     }
 
     // helper ϕ(α)
-    let mut phi = |alpha: f64| {
+    let mut phi = |alpha: f64| -> f64 {
         let y = x + &(direction * alpha);
         *nfev += 1;
         func(y.as_slice().unwrap())
     };
 
-    //------------------------------------------------------------------
-    // 1) Bracket a minimum with a golden‑ratio expansion
-    //------------------------------------------------------------------
-    let golden = 1.618_034;
+    // --------------------------------------------------------------
+    // 1) Find the downhill direction and an initial bracket
+    // --------------------------------------------------------------
+    let golden = 1.618_033_988_75_f64;           // φ
+    let mut step = 1.0;                          // Δ
     let mut a = 0.0;
-    let mut fa = f_x;            // ϕ(0)
-    let mut b = 1.0;
-    let mut fb = phi(b);
+    let mut fa = f_x;                            // ϕ(0)
 
-    // make sure we are going downhill
-    if fb > fa {
-        std::mem::swap(&mut a, &mut b);
-        std::mem::swap(&mut fa, &mut fb);
+    // probe +Δ and –Δ
+    let mut b =  step;
+    let mut fb = phi(b);
+    if fb > fa {                                 // uphill → try –Δ
+        b = -step;
+        fb = phi(b);
+        if fb > fa {
+            // no downhill yet: shrink Δ until we find one
+            for _ in 0..20 {
+                step *= 0.5;
+                if step < 1e-12 { break }        // give up – extremely flat
+                b =  step;
+                fb = phi(b);
+                if fb < fa { break }
+                b = -step;
+                fb = phi(b);
+                if fb < fa { break }
+            }
+        }
     }
 
+    // if we *still* have no downhill point, stay put
+    if fb >= fa {
+        return (0.0, f_x);
+    }
+
+    // at this point ‘a = 0’ is higher, ‘b’ is lower
+    // grow the interval until we are uphill again
     let mut c = b + golden * (b - a);
     let mut fc = phi(c);
-
-    const MAX_BRACKET: usize = 50;
-    for _ in 0..MAX_BRACKET {
-        if fb <= fc {
-            break;               // [a, b, c] is a valid bracket
-        }
+    for _ in 0..50 {
+        if fc > fb { break }                     // bracket found
         a = b;  fa = fb;
         b = c;  fb = fc;
         c = b + golden * (b - a);
         fc = phi(c);
     }
 
-    //------------------------------------------------------------------
-    // 2) Brent search inside the bracket
-    //------------------------------------------------------------------
-    let (mut lo, mut hi) = if a < c { (a, c) } else { (c, a) };
-    let mut mid = b;
-    let mut fm  = fb;
-    let mut d_last: f64 = 0.0;
+    // sort so that a < b < c
+    if a > c {
+        std::mem::swap(&mut a, &mut c);
+        std::mem::swap(&mut fa, &mut fc);
+    }
+
+    // --------------------------------------------------------------
+    // 2) Golden‑section search inside the bracket
+    // --------------------------------------------------------------
+    let mut lo = a;
+    let mut hi = c;
+    let mut x1 = hi - (hi - lo) / golden;
+    let mut x2 = lo + (hi - lo) / golden;
+    let mut f1 = phi(x1);
+    let mut f2 = phi(x2);
 
     const IT_MAX: usize = 100;
     const TOL: f64 = 1e-8;
 
     for _ in 0..IT_MAX {
-        let tol1 = TOL * mid.abs() + 1e-10;
-        let m    = 0.5 * (lo + hi);
-
-        // stop when the interval is tiny
-        if (mid - m).abs() <= 2.0 * tol1 - 0.5 * (hi - lo) {
-            break;
+        if (hi - lo).abs() < TOL {
+            let alpha = 0.5 * (hi + lo);
+            return (alpha, phi(alpha));          // φ counts this eval
         }
-
-        //--------------------------------------------------------------
-        // parabolic step (if it stays inside the bracket)
-        //--------------------------------------------------------------
-        let mut accept_parabolic = false;
-        let mut d = 0.0;
-        if d_last.abs() > tol1 {
-            let r = (mid - lo) * (fm - fc);
-            let q = (mid - hi) * (fm - fa);
-            let p = (mid - hi) * q - (mid - lo) * r;
-            let q = 2.0 * (q - r);
-
-            if q.abs() > 1e-21 {
-                let s = p / q;
-                if (lo + s) < (hi - s) && s.abs() < 0.5 * (hi - lo) {
-                    d = s;
-                    accept_parabolic = true;
-                }
-            }
-        }
-
-        if !accept_parabolic {
-            // golden‑section step
-            d = if mid >= m { -0.381_966_0 * (mid - lo) }
-                else         {  0.381_966_0 * (hi - mid) };
-        }
-
-        let u = mid + if d.abs() >= tol1 { d }
-                      else               { d.signum() * tol1 };
-        let fu = phi(u);
-
-        // update bracket points
-        if fu <= fm {
-            if u < mid { hi = mid; fc = fm; } else { lo = mid; fa = fm; }
-            mid = u; fm = fu;
+        if f1 < f2 {
+            hi = x2;
+            x2 = x1;
+            f2 = f1;
+            x1 = hi - (hi - lo) / golden;
+            f1 = phi(x1);
         } else {
-            if u < mid { lo = u;  fa = fu; } else { hi = u;  fc = fu; }
+            lo = x1;
+            x1 = x2;
+            f1 = f2;
+            x2 = lo + (hi - lo) / golden;
+            f2 = phi(x2);
         }
-        d_last = d;
     }
 
-    (mid, fm)
+    // fall‑back: return the best of the two interior points
+    if f1 < f2 { (x1, f1) } else { (x2, f2) }
 }
+
 
 /// Implements the Conjugate Gradient method for unconstrained optimization
 fn minimize_conjugate_gradient<F, S>(
