@@ -783,7 +783,7 @@ where
 mod tests {
     use super::*;
     use ndarray::array;
-    // use approx::assert_relative_eq;
+    use approx::assert_relative_eq;
 
     fn quadratic(x: &[f64]) -> f64 {
         x.iter().map(|&xi| xi * xi).sum()
@@ -804,15 +804,14 @@ mod tests {
 
         // The quadratic function should be minimized at [0, 0]
         assert!(result.success);
-        assert!(result.fun < 1e-6);
-        assert!(result.x.iter().all(|&x| x.abs() < 1e-3));
+        assert_relative_eq!(result.fun, 0.0, epsilon = 1e-6);
+        assert_relative_eq!(result.x[0], 0.0, epsilon = 1e-3);
+        assert_relative_eq!(result.x[1], 0.0, epsilon = 1e-3);
     }
 
     #[test]
     fn test_minimize_bfgs_rosenbrock() {
-        // Rosenbrock is a challenging function to minimize
-        // Start closer to the solution
-        let x0 = array![0.8, 0.8];
+        let x0 = array![0.0, 0.0];
 
         // For testing, we're more interested in the algorithm working than in perfect convergence
         let options = Options {
@@ -824,12 +823,11 @@ mod tests {
 
         let result = minimize(rosenbrock, &x0.view(), Method::BFGS, Some(options)).unwrap();
 
-        // For this test, we consider it a success if:
-        // 1. The function value is reasonably small
-        // 2. The solution is moving in the right direction
-        assert!(result.fun < 1.0);
-        assert!(result.x[0] > 0.5); // Moving toward 1.0
-        assert!(result.x[1] > 0.5); // Moving toward 1.0
+        // The minimum of Rosenbrock is at [1.0, 1.0]
+        assert!(result.success);
+        assert_relative_eq!(result.fun, 1.0, epsilon = 1e-6);
+        assert_relative_eq!(result.x[0], 1.0, epsilon = 1e-3);
+        assert_relative_eq!(result.x[1], 1.0, epsilon = 1e-3);
     }
 
     #[test]
@@ -839,8 +837,9 @@ mod tests {
 
         // The minimum of the quadratic function should be at the origin
         assert!(result.success);
-        assert!(result.fun < 1e-6);
-        assert!(result.x.iter().all(|&x| x.abs() < 1e-3));
+        assert_relative_eq!(result.fun, 0.0, epsilon = 1e-6);
+        assert_relative_eq!(result.x[0], 0.0, epsilon = 1e-3);
+        assert_relative_eq!(result.x[1], 0.0, epsilon = 1e-3);
     }
 
     #[test]
@@ -849,7 +848,7 @@ mod tests {
 
         // Specify maximum iterations to ensure test runs quickly
         let options = Options {
-            maxiter: Some(500),
+            maxiter: Some(1000),
             ..Options::default()
         };
 
@@ -859,8 +858,9 @@ mod tests {
         // Nelder-Mead might not converge exactly to the minimum in a limited number of iterations,
         // but it should get close
         assert!(result.success);
-        assert!(result.x[0] > 0.9 && result.x[0] < 1.1);
-        assert!(result.x[1] > 0.9 && result.x[1] < 1.1);
+        assert_relative_eq!(result.fun, 1.0, epsilon = 1e-6);
+        assert_relative_eq!(result.x[0], 1.0, epsilon = 1e-3);
+        assert_relative_eq!(result.x[1], 1.0, epsilon = 1e-3);
     }
 
     #[test]
@@ -873,22 +873,24 @@ mod tests {
             ..Options::default()
         };
 
-        let result = minimize(quadratic, &x0.view(), Method::Powell, Some(options)).unwrap();
+        let result = minimize(quadratic, &x0.view(), Method::Powell, Some(options.clone())).unwrap();
 
-        // For this simplified test, we only check that the algorithm runs without crashing
-        // and returns a success flag based on whether it reached its iteration limit
+        // Check that the optimization found coordinates close to the minimum
+        assert_relative_eq!(result.x[0], 0.0, epsilon = 1e-2);
+        assert_relative_eq!(result.x[1], 0.0, epsilon = 1e-2);
 
-        // Powell's method may not always make progress in early iterations,
-        // and may even make the solution slightly worse before it gets better
-        let initial_value = quadratic(&[1.0, 1.0]);
+        // Check that the function value at the minimum is close to zero
+        assert_relative_eq!(result.fun, 0.0, epsilon = 1e-2);
+
+        // Check that the algorithm converged within our iteration limit
+        assert!(result.nit <= options.maxiter.unwrap(),
+                "Algorithm used too many iterations: {}", result.nit);
+
+        // Still keep the informative print for debugging purposes
         println!(
             "Powell quadratic: x = {:?}, f = {}, initial = {}, iters = {}",
-            result.x, result.fun, initial_value, result.nit
+            result.x, result.fun, quadratic(&[1.0, 1.0]), result.nit
         );
-
-        // Since the implementation should be functional but test may be unstable,
-        // just assert that the algorithm completed without panicking
-        assert!(true);
     }
 
     #[test]
@@ -903,13 +905,12 @@ mod tests {
 
         let result = minimize(rosenbrock, &x0.view(), Method::Powell, Some(options)).unwrap();
 
-        // The Rosenbrock function should improve from the initial point
         assert!(result.success);
-        assert!(result.fun < rosenbrock(&[0.0, 0.0]));
 
-        // Should move in positive direction toward (1,1)
-        assert!(result.x[0] > 0.0);
-        assert!(result.x[1] > 0.0);
+        // The minimum of the Rosenbrock function is at (1, 1)
+        assert_relative_eq!(result.fun, 1.0, epsilon = 1e-6);
+        assert_relative_eq!(result.x[0], 1.0, epsilon = 1e-3);
+        assert_relative_eq!(result.x[1], 1.0, epsilon = 1e-3);
 
         println!(
             "Powell Rosenbrock: x = {:?}, f = {}, iter = {}",
@@ -930,15 +931,13 @@ mod tests {
 
         let result = minimize(quadratic, &x0.view(), Method::CG, Some(options)).unwrap();
 
-        // The quadratic function should be minimized in the direction of [0, 0]
         assert!(result.success);
 
-        // Should be better than starting point
-        assert!(result.fun < quadratic(&[1.0, 1.0]));
-
-        // Should be moving toward origin
-        assert!(result.x[0].abs() < 1.0);
-        assert!(result.x[1].abs() < 1.0);
+        // The minimum of the quadratic function should be at the origin
+        assert!(result.success);
+        assert_relative_eq!(result.fun, 0.0, epsilon = 1e-6);
+        assert_relative_eq!(result.x[0], 0.0, epsilon = 1e-3);
+        assert_relative_eq!(result.x[1], 0.0, epsilon = 1e-3);
     }
 
     #[test]
@@ -954,9 +953,11 @@ mod tests {
 
         let result = minimize(rosenbrock, &x0.view(), Method::CG, Some(options)).unwrap();
 
-        // For the Rosenbrock function, CG might not converge exactly to (1,1) from (0,0)
-        // in a reasonable number of iterations, but it should make progress
-        assert!(result.x[0] > 0.0); // Should move in positive direction
-        assert!(result.fun < rosenbrock(&[0.0, 0.0])); // Should improve from starting point
+        assert!(result.success);
+
+        // The minimum of the Rosenbrock function is at (1, 1)
+        assert_relative_eq!(result.fun, 1.0, epsilon = 1e-6);
+        assert_relative_eq!(result.x[0], 1.0, epsilon = 1e-3);
+        assert_relative_eq!(result.x[1], 1.0, epsilon = 1e-3);
     }
 }
