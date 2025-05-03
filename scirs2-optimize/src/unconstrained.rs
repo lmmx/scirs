@@ -524,24 +524,27 @@ where
             }
         }
 
-        // Check convergence
-        if 2.0 * (f_old - f) <= ftol * (f_old.abs() + f.abs() + 1e-10) {
-            break;
-        }
-
-        // Compute the new direction
         let new_dir = &x - &x_old;
 
-        // Perform an additional line search along the new direction
-        let (alpha, f_min) = line_search_powell(&func, &x, &new_dir, f, &mut nfev);
-
-        // Update current position and function value
+        //  extra line search along the extrapolated direction
+        let (alpha, f_min) =
+            line_search_powell(&func, &x, &new_dir, f, &mut nfev);
         x = &x + &(alpha * &new_dir);
         f = f_min;
 
-        // Update the set of directions by replacing the direction of greatest reduction
-        directions[reduction_idx] = new_dir;
+        //  only *now* check for convergence
+        if 2.0*(f_old - f)
+            <= ftol * (f_old.abs() + f.abs() + 1e-10)
+        {
+            break;
+        }
 
+        // Keep the basis full rank.
+        // If the extrapolated displacement is numerically zero we would
+        // lose a basis direction; just keep the old one instead.
+        if new_dir.iter().any(|v| v.abs() > 1e-12) {
+            directions[reduction_idx] = new_dir;
+        }
         iter += 1;
     }
 
@@ -573,65 +576,108 @@ fn line_search_powell<F>(
 where
     F: Fn(&[f64]) -> f64,
 {
-    // Golden section search parameters
-    let golden_ratio = 0.5 * (3.0 - 5_f64.sqrt());
-    let max_evaluations = 20;
+    // Degenerate direction ⇒ no movement
+    if direction.iter().all(|v| v.abs() <= 1e-16) {
+        return (0.0, f_x);
+    }
 
-    // Initial bracketing
-    let mut a = 0.0;
-    let mut b = 1.0;
-
-    // Function to evaluate a point on the line
-    let mut f_line = |alpha: f64| {
-        let x_new = x + alpha * direction;
+    // helper ϕ(α)
+    let mut phi = |alpha: f64| {
+        let y = x + &(direction * alpha);
         *nfev += 1;
-        func(x_new.as_slice().unwrap())
+        func(y.as_slice().unwrap())
     };
 
-    // Expand the bracket if needed
-    let mut f_b = f_line(b);
-    while f_b < f_x {
-        b *= 2.0;
-        f_b = f_line(b);
+    //------------------------------------------------------------------
+    // 1) Bracket a minimum with a golden‑ratio expansion
+    //------------------------------------------------------------------
+    let golden = 1.618_034;
+    let mut a = 0.0;
+    let mut fa = f_x;            // ϕ(0)
+    let mut b = 1.0;
+    let mut fb = phi(b);
 
-        // Safety check for unbounded decrease
-        if b > 1e8 {
-            return (b, f_b);
-        }
+    // make sure we are going downhill
+    if fb > fa {
+        std::mem::swap(&mut a, &mut b);
+        std::mem::swap(&mut fa, &mut fb);
     }
 
-    // Golden section search
-    let mut c = a + golden_ratio * (b - a);
-    let mut d = a + (1.0 - golden_ratio) * (b - a);
-    let mut f_c = f_line(c);
-    let mut f_d = f_line(d);
+    let mut c = b + golden * (b - a);
+    let mut fc = phi(c);
 
-    for _ in 0..max_evaluations {
-        if f_c < f_d {
-            b = d;
-            d = c;
-            f_d = f_c;
-            c = a + golden_ratio * (b - a);
-            f_c = f_line(c);
-        } else {
-            a = c;
-            c = d;
-            f_c = f_d;
-            d = a + (1.0 - golden_ratio) * (b - a);
-            f_d = f_line(d);
+    const MAX_BRACKET: usize = 50;
+    for _ in 0..MAX_BRACKET {
+        if fb <= fc {
+            break;               // [a, b, c] is a valid bracket
         }
+        a = b;  fa = fb;
+        b = c;  fb = fc;
+        c = b + golden * (b - a);
+        fc = phi(c);
+    }
 
-        // Check convergence
-        if (b - a).abs() < 1e-6 {
+    //------------------------------------------------------------------
+    // 2) Brent search inside the bracket
+    //------------------------------------------------------------------
+    let (mut lo, mut hi) = if a < c { (a, c) } else { (c, a) };
+    let mut mid = b;
+    let mut fm  = fb;
+    let mut d_last: f64 = 0.0;
+
+    const IT_MAX: usize = 100;
+    const TOL: f64 = 1e-8;
+
+    for _ in 0..IT_MAX {
+        let tol1 = TOL * mid.abs() + 1e-10;
+        let m    = 0.5 * (lo + hi);
+
+        // stop when the interval is tiny
+        if (mid - m).abs() <= 2.0 * tol1 - 0.5 * (hi - lo) {
             break;
         }
+
+        //--------------------------------------------------------------
+        // parabolic step (if it stays inside the bracket)
+        //--------------------------------------------------------------
+        let mut accept_parabolic = false;
+        let mut d = 0.0;
+        if d_last.abs() > tol1 {
+            let r = (mid - lo) * (fm - fc);
+            let q = (mid - hi) * (fm - fa);
+            let p = (mid - hi) * q - (mid - lo) * r;
+            let q = 2.0 * (q - r);
+
+            if q.abs() > 1e-21 {
+                let s = p / q;
+                if (lo + s) < (hi - s) && s.abs() < 0.5 * (hi - lo) {
+                    d = s;
+                    accept_parabolic = true;
+                }
+            }
+        }
+
+        if !accept_parabolic {
+            // golden‑section step
+            d = if mid >= m { -0.381_966_0 * (mid - lo) }
+                else         {  0.381_966_0 * (hi - mid) };
+        }
+
+        let u = mid + if d.abs() >= tol1 { d }
+                      else               { d.signum() * tol1 };
+        let fu = phi(u);
+
+        // update bracket points
+        if fu <= fm {
+            if u < mid { hi = mid; fc = fm; } else { lo = mid; fa = fm; }
+            mid = u; fm = fu;
+        } else {
+            if u < mid { lo = u;  fa = fu; } else { hi = u;  fc = fu; }
+        }
+        d_last = d;
     }
 
-    // Return the midpoint and its function value
-    let alpha = 0.5 * (a + b);
-    let f_min = f_line(alpha);
-
-    (alpha, f_min)
+    (mid, fm)
 }
 
 /// Implements the Conjugate Gradient method for unconstrained optimization
@@ -908,7 +954,7 @@ mod tests {
         assert!(result.success);
 
         // The minimum of the Rosenbrock function is at (1, 1)
-        assert_relative_eq!(result.fun, 1.0, epsilon = 1e-6);
+        assert_relative_eq!(result.fun, 0.0, epsilon = 1e-6);
         assert_relative_eq!(result.x[0], 1.0, epsilon = 1e-3);
         assert_relative_eq!(result.x[1], 1.0, epsilon = 1e-3);
 
@@ -956,7 +1002,7 @@ mod tests {
         assert!(result.success);
 
         // The minimum of the Rosenbrock function is at (1, 1)
-        assert_relative_eq!(result.fun, 1.0, epsilon = 1e-6);
+        assert_relative_eq!(result.fun, 0.0, epsilon = 1e-6);
         assert_relative_eq!(result.x[0], 1.0, epsilon = 1e-3);
         assert_relative_eq!(result.x[1], 1.0, epsilon = 1e-3);
     }
