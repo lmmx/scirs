@@ -20,7 +20,15 @@ thiserror = "2.0.12"
 # Signal processing specific dependencies
 rustfft = "6.2.0"
 scirs2-fft = { path = "../scirs2-fft", version = "0.1.0-alpha.1" }
+scirs2-linalg = { path = "../scirs2-linalg", version = "0.1.0-alpha.1" }
 rand = "0.9.0"
+plotly = "0.12.1"
+# Optional rayon dependency for parallel processing
+rayon = { version = "1.8.1", optional = true }
+
+[features]
+default = []
+parallel = ["rayon"]
 
 [dev-dependencies]
 approx = "0.5.1"

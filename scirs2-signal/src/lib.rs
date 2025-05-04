@@ -5,11 +5,19 @@
 //!
 //! ## Overview
 //!
-//! * Filtering: FIR and IIR filters, filter design
+//! * Filtering: FIR and IIR filters, filter design, Savitzky-Golay filter
 //! * Convolution and correlation
 //! * Spectral analysis and periodograms
+//! * Short-time Fourier transform (STFT) and spectrograms
+//! * Wavelet transforms (1D and 2D)
 //! * Peak finding and signal measurements
 //! * Waveform generation and processing
+//! * Resampling and interpolation
+//! * Linear Time-Invariant (LTI) systems analysis
+//! * Chirp Z-Transform (CZT) for non-uniform frequency sampling
+//! * Signal detrending and trend analysis
+//! * Hilbert transform and analytic signal analysis
+//! * Multi-resolution analysis with wavelets (CWT, DWT, DWT2D, SWT, SWT2D, WPT)
 //!
 //! ## Examples
 //!
@@ -37,6 +45,21 @@ pub mod peak;
 pub mod resample;
 pub mod spectral;
 pub mod waveforms;
+pub mod savgol;
+pub mod wavelets;
+pub mod lti;
+pub mod lti_response;
+pub mod czt;
+pub mod detrend;
+pub mod dwt;
+pub mod dwt2d;
+pub mod dwt2d_image;
+pub mod denoise;
+pub mod swt;
+pub mod swt2d;
+pub mod wpt;
+pub mod wpt2d;
+pub mod wavelet_vis;
 
 // Re-export commonly used functions
 pub use convolve::{convolve, correlate, deconvolve};
@@ -44,6 +67,48 @@ pub use filter::{bessel, butter, cheby1, cheby2, ellip, filtfilt, firwin, lfilte
 pub use peak::{find_peaks, peak_prominences, peak_widths};
 pub use spectral::{periodogram, spectrogram, stft, welch};
 pub use waveforms::{chirp, gausspulse, sawtooth, square};
+
+// Savitzky-Golay filtering
+pub use savgol::{savgol_coeffs, savgol_filter};
+
+// Wavelet transform functions
+pub use wavelets::{cwt, morlet, paul, ricker, complex_morlet, complex_gaussian, shannon, fbsp};
+pub use dwt::{Wavelet, WaveletFilters, dwt_decompose, dwt_reconstruct, wavedec, waverec};
+pub use dwt2d::{dwt2d_decompose, dwt2d_reconstruct, wavedec2, waverec2, Dwt2dResult};
+pub use swt::{swt, iswt, swt_decompose, swt_reconstruct};
+pub use swt2d::{swt2d, swt2d_decompose, swt2d_reconstruct, iswt2d, Swt2dResult};
+pub use wpt::{wp_decompose, get_level_coefficients, reconstruct_from_nodes, WaveletPacket, WaveletPacketTree};
+pub use wpt2d::{wpt2d_full, wpt2d_selective, WaveletPacket2D, WaveletPacketTree2D};
+
+// LTI systems functions
+pub use lti::{LtiSystem, TransferFunction, ZerosPoleGain, StateSpace, bode};
+pub use lti::system::{tf, zpk, ss, c2d};
+pub use lti_response::{impulse_response, step_response, lsim};
+
+// Chirp Z-Transform functions
+pub use czt::{czt, czt_points};
+
+// Hilbert transform and related functions
+pub mod hilbert;
+pub use hilbert::{hilbert, envelope, instantaneous_frequency, instantaneous_phase};
+
+// Detrending functions
+pub use detrend::{detrend, detrend_axis, detrend_poly};
+
+// Signal denoising functions
+pub use denoise::{denoise_wavelet, ThresholdMethod, ThresholdSelect};
+
+// 2D Wavelet image processing functions
+pub use dwt2d_image::{denoise_image, detect_edges, compress_image, DenoisingMethod};
+
+// Wavelet visualization utilities
+pub use wavelet_vis::{
+    arrange_coefficients_2d, arrange_multilevel_coefficients_2d,
+    calculate_energy_1d, calculate_energy_2d, calculate_energy_swt2d,
+    count_nonzero_coefficients, normalize_coefficients,
+    create_coefficient_heatmap, NormalizationStrategy, WaveletEnergy, 
+    WaveletCoeffCount, colormaps
+};
 
 // Signal measurement functions
 pub mod measurements;

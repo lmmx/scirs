@@ -12,6 +12,7 @@ Signal processing module for the SciRS2 scientific computing library. This modul
 - **Filtering**: Various filter designs and implementations
 - **Convolution**: Efficient convolution operations
 - **Spectral Analysis**: Tools for frequency domain analysis
+- **Wavelet Transforms**: Comprehensive wavelet analysis toolkit
 - **Peak Detection**: Algorithms for finding peaks in signals
 - **Resampling**: Methods for changing sampling rates
 - **Measurements**: Signal quality and statistical measurements
@@ -266,6 +267,67 @@ use scirs2_signal::measurements::{
     sinad,                  // Signal-to-noise and distortion ratio
     sfdr,                   // Spurious-free dynamic range
 };
+```
+
+### Wavelet Transforms
+
+Comprehensive wavelet analysis toolkit with multiple transform types and families:
+
+```rust
+use scirs2_signal::dwt::{
+    Wavelet,                // Supported wavelet families
+    dwt_decompose,          // Discrete Wavelet Transform
+    dwt_reconstruct,        // Inverse Discrete Wavelet Transform
+    wavedec,                // Multi-level DWT decomposition
+    waverec,                // Multi-level DWT reconstruction
+};
+
+use scirs2_signal::swt::{
+    swt_decompose,          // Stationary Wavelet Transform
+    swt_reconstruct,        // Inverse Stationary Wavelet Transform
+    swt,                    // Multi-level SWT decomposition
+    iswt,                   // Multi-level SWT reconstruction
+};
+
+use scirs2_signal::wpt::{
+    wp_decompose,           // Wavelet Packet Transform
+    reconstruct_from_nodes, // Reconstruct signal from WPT nodes
+    WaveletPacket,          // Wavelet packet node representation
+    WaveletPacketTree,      // Tree structure for wavelet packets
+};
+
+use scirs2_signal::denoise::{
+    denoise_wavelet,        // Wavelet-based signal denoising
+    ThresholdMethod,        // Hard, soft, or garrote thresholding
+    ThresholdSelect,        // Universal, SURE, or minimax threshold selection
+};
+
+// Available wavelet families
+let wavelets = [
+    Wavelet::Haar,          // Haar wavelet (equivalent to db1)
+    Wavelet::DB(4),         // Daubechies wavelet with 4 vanishing moments
+    Wavelet::Sym(4),        // Symlet wavelet with 4 vanishing moments
+    Wavelet::Coif(3),       // Coiflet wavelet with 3 vanishing moments
+    Wavelet::Meyer,         // Meyer wavelet
+    Wavelet::DMeyer,        // Discrete Meyer wavelet
+    Wavelet::BiorNrNd { nr: 3, nd: 5 }, // Biorthogonal wavelet
+    Wavelet::RBioNrNd { nr: 3, nd: 5 }, // Reverse biorthogonal wavelet
+];
+
+// Example: Simple DWT decomposition and reconstruction
+let signal = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+let (approx, detail) = dwt_decompose(&signal, Wavelet::DB(4), None).unwrap();
+let reconstructed = dwt_reconstruct(&approx, &detail, Wavelet::DB(4)).unwrap();
+
+// Example: Wavelet-based denoising
+let denoised = denoise_wavelet(
+    &noisy_signal,
+    Wavelet::Sym(4),
+    3,                       // Decomposition level
+    ThresholdMethod::Soft,   // Soft thresholding
+    ThresholdSelect::Universal, // Universal threshold selection
+    None,                    // Default parameters
+).unwrap();
 ```
 
 ## Integration with FFT Module
