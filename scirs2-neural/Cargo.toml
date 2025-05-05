@@ -1,6 +1,6 @@
 [package]
 name = "scirs2-neural"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 edition = "2021"
 authors = ["SciRS2 Team"]
 license = "Apache-2.0"
@@ -11,11 +11,11 @@ categories = ["science", "mathematics", "algorithms"]
 
 [dependencies]
 # Core dependencies
-scirs2-core = { path = "../scirs2-core", version = "0.1.0-alpha.1", optional = true }
+scirs2-core = { path = "../scirs2-core", version = "0.1.0-alpha.2", optional = true }
 # Temporarily commented out for publishing
-# scirs2-linalg = { path = "../scirs2-linalg", version = "0.1.0-alpha.1", optional = true }
-# scirs2-optimize = { path = "../scirs2-optimize", version = "0.1.0-alpha.1", optional = true }
-# scirs2-optim = { path = "../scirs2-optim", version = "0.1.0-alpha.1", optional = true }
+# scirs2-linalg = { path = "../scirs2-linalg", version = "0.1.0-alpha.2", optional = true }
+# scirs2-optimize = { path = "../scirs2-optimize", version = "0.1.0-alpha.2", optional = true }
+# scirs2-optim = { path = "../scirs2-optim", version = "0.1.0-alpha.2", optional = true }
 ndarray = { version = "0.16.1", features = ["serde", "rayon"] }
 ndarray-stats = "0.5.0"
 num-integer = "0.1.46"
@@ -28,7 +28,7 @@ rand = "0.9.0"
 # AI/ML specific dependencies
 autograd = "1.1.1"
 # Temporarily commented out for publishing
-# scirs2-autograd = { path = "../scirs2-autograd", version = "0.1.0-alpha.1" }
+# scirs2-autograd = { path = "../scirs2-autograd", version = "0.1.0-alpha.2" }
 
 # Future dependency for PandRS and NumRS with appropriate abstractions
 # pandrs_wrapper = { path = "../wrappers/pandrs_wrapper", optional = true }

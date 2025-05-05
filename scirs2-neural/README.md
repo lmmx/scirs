@@ -20,14 +20,14 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scirs2-neural = "0.1.0-alpha.1"
+scirs2-neural = "0.1.0-alpha.2"
 ```
 
 To enable optimizations and optional features:
 
 ```toml
 [dependencies]
-scirs2-neural = { version = "0.1.0-alpha.1", features = ["cuda", "blas"] }
+scirs2-neural = { version = "0.1.0-alpha.2", features = ["cuda", "blas"] }
 ```
 
 ## Usage

@@ -31,7 +31,8 @@ fn get_window(window_type: &str, nperseg: usize) -> SignalResult<Vec<f64>> {
         "hann" => {
             let mut window = Vec::with_capacity(nperseg);
             for i in 0..nperseg {
-                let value = 0.5 * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / (nperseg - 1) as f64).cos());
+                let value = 0.5
+                    * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / (nperseg - 1) as f64).cos());
                 window.push(value);
             }
             Ok(window)
@@ -39,7 +40,8 @@ fn get_window(window_type: &str, nperseg: usize) -> SignalResult<Vec<f64>> {
         "hamming" => {
             let mut window = Vec::with_capacity(nperseg);
             for i in 0..nperseg {
-                let value = 0.54 - 0.46 * (2.0 * std::f64::consts::PI * i as f64 / (nperseg - 1) as f64).cos();
+                let value = 0.54
+                    - 0.46 * (2.0 * std::f64::consts::PI * i as f64 / (nperseg - 1) as f64).cos();
                 window.push(value);
             }
             Ok(window)
@@ -47,15 +49,14 @@ fn get_window(window_type: &str, nperseg: usize) -> SignalResult<Vec<f64>> {
         "blackman" => {
             let mut window = Vec::with_capacity(nperseg);
             for i in 0..nperseg {
-                let value = 0.42 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / (nperseg - 1) as f64).cos()
+                let value = 0.42
+                    - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / (nperseg - 1) as f64).cos()
                     + 0.08 * (4.0 * std::f64::consts::PI * i as f64 / (nperseg - 1) as f64).cos();
                 window.push(value);
             }
             Ok(window)
         }
-        "boxcar" | "rectangular" => {
-            Ok(vec![1.0; nperseg])
-        }
+        "boxcar" | "rectangular" => Ok(vec![1.0; nperseg]),
         _ => Err(SignalError::ValueError(format!(
             "Unknown window type: {}",
             window_type
@@ -99,8 +100,7 @@ fn apply_detrend(x: &[f64], detrend_type: &str) -> SignalResult<Vec<f64>> {
             let intercept = (sum_y - slope * sum_x) / n as f64;
 
             // Remove trend
-            Ok(x
-                .iter()
+            Ok(x.iter()
                 .enumerate()
                 .map(|(i, &y)| y - (slope * i as f64 + intercept))
                 .collect())
@@ -348,41 +348,41 @@ where
     for i in 0..num_segments {
         let start = i * step;
         let end = start + nperseg_val;
-        
+
         if end > x_f64.len() {
             break;
         }
-        
+
         // Extract segment
         let segment = x_f64[start..end].to_vec();
-        
+
         // Detrend the segment
         let detrended = apply_detrend(&segment, detrend_val)?;
-        
+
         // Apply window
         let windowed: Vec<f64> = detrended
             .iter()
             .zip(win.iter())
             .map(|(&x, &w)| x * w)
             .collect();
-        
+
         // Zero-pad if needed
         let mut padded = windowed.clone();
         if nfft_val > padded.len() {
             padded.resize(nfft_val, 0.0);
         }
-        
+
         // Compute FFT
         let spectrum = scirs2_fft::fft(&padded, None)
             .map_err(|e| SignalError::ComputationError(format!("FFT computation error: {}", e)))?;
-        
+
         // Compute periodogram for this segment
         let segment_psd: Vec<f64> = spectrum
             .iter()
             .take(n_half)
             .map(|&c| c.norm_sqr() * scale / (fs_val * nperseg_val as f64))
             .collect();
-        
+
         // Accumulate into average
         for (j, &psd) in segment_psd.iter().enumerate() {
             if j < psd_avg.len() {
@@ -390,12 +390,12 @@ where
             }
         }
     }
-    
+
     // Normalize by number of segments
     for psd in &mut psd_avg {
         *psd /= num_segments as f64;
     }
-    
+
     // Apply scaling
     let result_psd = if scaling_val == "density" {
         psd_avg
@@ -403,7 +403,7 @@ where
         // "spectrum" - multiply by sampling frequency
         psd_avg.iter().map(|&p| p * fs_val).collect()
     };
-    
+
     Ok((result_freqs, result_psd))
 }
 
@@ -576,34 +576,34 @@ where
     for i in 0..num_segments {
         let start = i * step;
         let end = start + nperseg_val;
-        
+
         if end > input_signal.len() {
             break;
         }
-        
+
         // Extract segment
         let segment = input_signal[start..end].to_vec();
-        
+
         // Detrend the segment
         let detrended = apply_detrend(&segment, detrend_val)?;
-        
+
         // Apply window
         let windowed: Vec<f64> = detrended
             .iter()
             .zip(win.iter())
             .map(|(&x, &w)| x * w)
             .collect();
-        
+
         // Zero-pad if needed
         let mut padded_segment = windowed.clone();
         if nfft_val > padded_segment.len() {
             padded_segment.resize(nfft_val, 0.0);
         }
-        
+
         // Compute FFT
         let spectrum = scirs2_fft::fft(&padded_segment, None)
             .map_err(|e| SignalError::ComputationError(format!("FFT computation error: {}", e)))?;
-        
+
         // Store positive frequencies in output matrix
         for (j, &val) in spectrum.iter().take(n_half).enumerate() {
             stft_output[j][i] = val;
@@ -678,13 +678,13 @@ where
             // Power spectral density
             let fs_val = fs.unwrap_or(1.0);
             let nperseg_val = nperseg.unwrap_or(256.min(x.len()));
-            
+
             // Create window function for scaling
             let window_val = window.unwrap_or("hann");
             let win = get_window(window_val, nperseg_val)?;
             let win_scale = win.iter().map(|&w| w.powi(2)).sum::<f64>();
             let scale = 1.0 / win_scale;
-            
+
             stft_values
                 .iter()
                 .map(|col| {
@@ -718,7 +718,8 @@ where
         }
         "complex" => {
             return Err(SignalError::ValueError(
-                "Mode 'complex' returns complex values and is not supported for spectrogram".to_string(),
+                "Mode 'complex' returns complex values and is not supported for spectrogram"
+                    .to_string(),
             ));
         }
         _ => {
@@ -736,8 +737,8 @@ where
 mod tests {
     use super::*;
     use approx::assert_relative_eq;
-    use std::f64::consts::PI;
     use rand::Rng;
+    use std::f64::consts::PI;
 
     #[test]
     fn test_periodogram_sine_wave() {
@@ -775,7 +776,7 @@ mod tests {
         let t: Vec<f64> = (0..2000).map(|i| i as f64 / fs).collect();
         let f = 10.0; // Hz
         let mut x: Vec<f64> = t.iter().map(|&t| (2.0 * PI * f * t).sin()).collect();
-        
+
         // Add noise
         let mut rng = rand::rng();
         for i in 0..x.len() {
@@ -783,7 +784,8 @@ mod tests {
         }
 
         // Compute Welch's periodogram
-        let (freqs, psd) = welch(&x, Some(fs), None, Some(256), Some(128), None, None, None).unwrap();
+        let (freqs, psd) =
+            welch(&x, Some(fs), None, Some(256), Some(128), None, None, None).unwrap();
 
         // Find the peak frequency
         let mut max_idx = 0;
@@ -804,10 +806,24 @@ mod tests {
         // Generate a chirp signal (increasing frequency)
         let fs = 1000.0;
         let t: Vec<f64> = (0..2000).map(|i| i as f64 / fs).collect();
-        let x: Vec<f64> = t.iter().map(|&t| (2.0 * PI * (10.0 + 50.0 * t) * t).sin()).collect();
+        let x: Vec<f64> = t
+            .iter()
+            .map(|&t| (2.0 * PI * (10.0 + 50.0 * t) * t).sin())
+            .collect();
 
         // Compute STFT
-        let (freqs, times, stft_values) = stft(&x, Some(fs), None, Some(128), Some(64), None, None, None, None).unwrap();
+        let (freqs, times, stft_values) = stft(
+            &x,
+            Some(fs),
+            None,
+            Some(128),
+            Some(64),
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         // Check dimensions
         assert!(!freqs.is_empty());
@@ -822,7 +838,7 @@ mod tests {
             // Find peak frequency for first and last time segment
             let first_segment = &stft_values[0];
             let last_segment = &stft_values[times.len() - 1];
-            
+
             let mut max_idx_first = 0;
             let mut max_val_first = 0.0;
             for (i, &val) in first_segment.iter().enumerate() {
@@ -831,7 +847,7 @@ mod tests {
                     max_idx_first = i;
                 }
             }
-            
+
             let mut max_idx_last = 0;
             let mut max_val_last = 0.0;
             for (i, &val) in last_segment.iter().enumerate() {
@@ -840,7 +856,7 @@ mod tests {
                     max_idx_last = i;
                 }
             }
-            
+
             // For a chirp, the peak frequency at the end should be higher
             assert!(freqs[max_idx_last] > freqs[max_idx_first]);
         }
@@ -854,29 +870,62 @@ mod tests {
         let x: Vec<f64> = t.iter().map(|&t| (2.0 * PI * 10.0 * t).sin()).collect();
 
         // Compute spectrograms with different modes
-        let (_, _, psd_values) = spectrogram(&x, Some(fs), None, Some(128), None, None, None, None, Some("psd")).unwrap();
-        let (_, _, mag_values) = spectrogram(&x, Some(fs), None, Some(128), None, None, None, None, Some("magnitude")).unwrap();
-        let (_, _, phase_values) = spectrogram(&x, Some(fs), None, Some(128), None, None, None, None, Some("phase")).unwrap();
+        let (_, _, psd_values) = spectrogram(
+            &x,
+            Some(fs),
+            None,
+            Some(128),
+            None,
+            None,
+            None,
+            None,
+            Some("psd"),
+        )
+        .unwrap();
+        let (_, _, mag_values) = spectrogram(
+            &x,
+            Some(fs),
+            None,
+            Some(128),
+            None,
+            None,
+            None,
+            None,
+            Some("magnitude"),
+        )
+        .unwrap();
+        let (_, _, phase_values) = spectrogram(
+            &x,
+            Some(fs),
+            None,
+            Some(128),
+            None,
+            None,
+            None,
+            None,
+            Some("phase"),
+        )
+        .unwrap();
 
         // Check dimensions
         assert!(!psd_values.is_empty());
         assert!(!mag_values.is_empty());
         assert!(!phase_values.is_empty());
-        
+
         // PSD values should be non-negative
         for row in &psd_values {
             for &val in row {
                 assert!(val >= 0.0);
             }
         }
-        
+
         // Magnitude values should be non-negative
         for row in &mag_values {
             for &val in row {
                 assert!(val >= 0.0);
             }
         }
-        
+
         // Phase values should be between -π and π
         for row in &phase_values {
             for &val in row {

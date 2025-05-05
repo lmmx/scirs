@@ -492,66 +492,98 @@ mod tests {
         // Adjust the test expectations to match the actual implementation
         // Note: The implementation may have different behavior than originally expected
         // We're testing the current behavior of the function, not against fixed expectations
-        
+
         // Non-real transforms with more prime factors
         for target in [7, 13, 511, 512, 513, 1000, 1024] {
             let result = next_fast_len(target, false);
             // Just assert that the output is valid, not a specific value
-            assert!(result >= target, "Result should be >= target: {} >= {}", result, target);
-            
+            assert!(
+                result >= target,
+                "Result should be >= target: {} >= {}",
+                result,
+                target
+            );
+
             // Check that result is a product of allowed prime factors
-            assert!(is_fast_length(result, false), 
-                   "Result {} should be a product of efficient prime factors", result);
+            assert!(
+                is_fast_length(result, false),
+                "Result {} should be a product of efficient prime factors",
+                result
+            );
         }
 
         // Real transforms (using a more limited factor set)
         for target in [13, 512, 523, 1000] {
             let result = next_fast_len(target, true);
             // Just assert that the output is valid, not a specific value
-            assert!(result >= target, "Result should be >= target: {} >= {}", result, target);
-            
+            assert!(
+                result >= target,
+                "Result should be >= target: {} >= {}",
+                result,
+                target
+            );
+
             // Check that result is a product of allowed prime factors
-            assert!(is_fast_length(result, true), 
-                   "Result {} should be a product of efficient real prime factors", result);
+            assert!(
+                is_fast_length(result, true),
+                "Result {} should be a product of efficient real prime factors",
+                result
+            );
         }
     }
 
     #[test]
     fn test_prev_fast_len() {
         // Adjust the test expectations to match the actual implementation
-        
+
         // Non-real transforms with more prime factors
         for target in [7, 13, 512, 513, 1000, 1024] {
             let result = prev_fast_len(target, false);
             // Just assert that the output is valid, not a specific value
-            assert!(result <= target, "Result should be <= target: {} <= {}", result, target);
-            
+            assert!(
+                result <= target,
+                "Result should be <= target: {} <= {}",
+                result,
+                target
+            );
+
             // Check that result is a product of allowed prime factors
-            assert!(is_fast_length(result, false), 
-                   "Result {} should be a product of efficient prime factors", result);
+            assert!(
+                is_fast_length(result, false),
+                "Result {} should be a product of efficient prime factors",
+                result
+            );
         }
 
         // Real transforms (using a more limited factor set)
         for target in [13, 512, 613, 1000] {
             let result = prev_fast_len(target, true);
             // Just assert that the output is valid, not a specific value
-            assert!(result <= target, "Result should be <= target: {} <= {}", result, target);
-            
+            assert!(
+                result <= target,
+                "Result should be <= target: {} <= {}",
+                result,
+                target
+            );
+
             // Check that result is a product of efficient real prime factors
-            assert!(is_fast_length(result, true), 
-                   "Result {} should be a product of efficient real prime factors", result);
+            assert!(
+                is_fast_length(result, true),
+                "Result {} should be a product of efficient real prime factors",
+                result
+            );
         }
     }
-    
+
     // Helper function for tests to check if a number is a product of efficient factors
     fn is_fast_length(n: usize, real: bool) -> bool {
         if n <= 1 {
             return true;
         }
-        
+
         let max_factor = if real { 5 } else { 11 };
         let mut remaining = n;
-        
+
         while remaining > 1 {
             let mut factor_found = false;
             for &p in EFFICIENT_FACTORS.iter().filter(|&&p| p <= max_factor) {
@@ -561,12 +593,12 @@ mod tests {
                     break;
                 }
             }
-            
+
             if !factor_found {
                 return false;
             }
         }
-        
+
         true
     }
 }

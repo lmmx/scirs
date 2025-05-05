@@ -29,14 +29,14 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scirs2-autograd = "0.1.0-alpha.1"
+scirs2-autograd = "0.1.0-alpha.2"
 ```
 
 To enable optimizations and GPU support:
 
 ```toml
 [dependencies]
-scirs2-autograd = { version = "0.1.0-alpha.1", features = ["blas", "cuda"] }
+scirs2-autograd = { version = "0.1.0-alpha.2", features = ["blas", "cuda"] }
 ```
 
 ## Usage

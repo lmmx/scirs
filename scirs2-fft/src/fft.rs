@@ -1245,17 +1245,17 @@ where
 /// // Based on our implementation's behavior, values are scaled by approximately 1/6
 /// // Compute the scaling factor from the first element's ratio
 /// let scaling_factor = arr[[0, 0]] / recovered[IxDyn(&[0, 0])].re;
-/// 
+///
 /// // Check that all values maintain this same ratio
 /// for i in 0..2 {
 ///     for j in 0..3 {
 ///         let original = arr[[i, j]];
 ///         let recovered_val = recovered[IxDyn(&[i, j])].re * scaling_factor;
-///         assert!((original - recovered_val).abs() < 1e-6, 
-///                "Value mismatch at [{}, {}]: expected {}, got {}", 
+///         assert!((original - recovered_val).abs() < 1e-6,
+///                "Value mismatch at [{}, {}]: expected {}, got {}",
 ///                i, j, original, recovered_val);
 ///         assert!(recovered[IxDyn(&[i, j])].im.abs() < 1e-6,
-///                "Imaginary part should be near zero at [{}, {}]: {}", 
+///                "Imaginary part should be near zero at [{}, {}]: {}",
 ///                i, j, recovered[IxDyn(&[i, j])].im);
 ///     }
 /// }
@@ -1646,12 +1646,17 @@ mod tests {
             }
         }
 
-        // Check that values have reasonable magnitudes 
+        // Check that values have reasonable magnitudes
         for i in 0..2 {
             for j in 0..2 {
                 // Check real parts are nonzero (relaxed check)
-                assert!(recovered_2d[[i, j]].re.abs() > 0.01, 
-                        "Real part at [{}, {}] is too small: {}", i, j, recovered_2d[[i, j]].re);
+                assert!(
+                    recovered_2d[[i, j]].re.abs() > 0.01,
+                    "Real part at [{}, {}] is too small: {}",
+                    i,
+                    j,
+                    recovered_2d[[i, j]].re
+                );
             }
         }
     }
@@ -1816,13 +1821,8 @@ mod tests {
 
         // Verify several elements match within reasonable tolerance
         // We'll check a sampling of points rather than the entire array
-        let check_points = [
-            (0, 0, 0),
-            (0, 1, 0),
-            (1, 0, 0),
-            (1, 2, 3),
-        ];
-        
+        let check_points = [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 2, 3)];
+
         for (i, j, k) in check_points {
             let original_value = (i * 3 * 4 + j * 4 + k) as f64;
             assert_relative_eq!(
@@ -1830,11 +1830,7 @@ mod tests {
                 original_value,
                 epsilon = 1e-10
             );
-            assert_relative_eq!(
-                recovered[IxDyn(&[i, j, k])].im,
-                0.0,
-                epsilon = 1e-10
-            );
+            assert_relative_eq!(recovered[IxDyn(&[i, j, k])].im, 0.0, epsilon = 1e-10);
         }
     }
 
@@ -1853,7 +1849,7 @@ mod tests {
 
         // DC component should be sum of all elements
         assert_relative_eq!(spectrum[IxDyn(&[0, 0])].re, 10.0, epsilon = 1e-10);
-        
+
         // Try a safe conversion from complex to real values
         let real_vals = vec![
             spectrum[IxDyn(&[0, 0])].re,
@@ -1861,7 +1857,7 @@ mod tests {
             spectrum[IxDyn(&[1, 0])].re,
             spectrum[IxDyn(&[1, 1])].re,
         ];
-        
+
         // Ensure we have values
         for val in real_vals {
             assert!(val.is_finite(), "FFT output values should be finite");
@@ -1890,13 +1886,8 @@ mod tests {
         let recovered = ifftn(&spectrum.view(), None, Some(axes), None, None, None).unwrap();
 
         // Check several sample points to make sure the behavior is correct
-        let check_points = [
-            (0, 0, 0),
-            (0, 1, 0),
-            (1, 0, 0),
-            (1, 1, 1),
-        ];
-        
+        let check_points = [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 1)];
+
         for (i, j, k) in check_points {
             let original_value = (i * 3 * 4 + j * 4 + k) as f64;
             // Use significantly relaxed tolerance for FFT with selected axes
@@ -1965,7 +1956,7 @@ mod tests {
         // Check that DC component is correct
         let expected_sum: f64 = (0..4 * 4 * 4).map(|x| x as f64).sum();
         assert_relative_eq!(spectrum[IxDyn(&[0, 0, 0])].re, expected_sum, epsilon = 1e-8);
-        
+
         // Check that at least a few non-DC components have reasonable values
         assert!(spectrum[IxDyn(&[1, 0, 0])].re.is_finite());
         assert!(spectrum[IxDyn(&[0, 1, 0])].re.is_finite());
@@ -1977,11 +1968,8 @@ mod tests {
     #[ignore = "Test needs improved tolerance for RFFT transformations"]
     fn test_rfftn_irfftn_roundtrip() {
         // First, we need to make sure the rfft module is available
-        let rfft_module_available = std::panic::catch_unwind(|| {
-            
-            true
-        }).is_ok();
-        
+        let rfft_module_available = std::panic::catch_unwind(|| true).is_ok();
+
         if !rfft_module_available {
             // Ignore test if module isn't available
             println!("Skipping rfftn test - module not available");
@@ -2022,7 +2010,7 @@ mod tests {
 
         // Check values - use a sampling approach with relaxed tolerance
         let sample_points = [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 1)];
-        
+
         for (i, j, k) in sample_points {
             let original_value = (i * 2 * 2 + j * 2 + k) as f64;
             // Use relaxed tolerance for real-to-complex-to-real transformation
@@ -2039,11 +2027,8 @@ mod tests {
     #[ignore = "Test needs shape validation fixes"]
     fn test_rfftn_axes_parameter() {
         // First check if rfft module is available
-        let rfft_module_available = std::panic::catch_unwind(|| {
-            
-            true
-        }).is_ok();
-        
+        let rfft_module_available = std::panic::catch_unwind(|| true).is_ok();
+
         if !rfft_module_available {
             // Ignore test if module isn't available
             println!("Skipping rfftn axes test - module not available");
@@ -2085,7 +2070,7 @@ mod tests {
 
         // Check selected points with relaxed tolerance
         let check_points = [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 1)];
-        
+
         for (i, j, k) in check_points {
             if i < 2 && j < 2 && k < 3 {
                 let original_value = (i * 2 * 3 + j * 3 + k) as f64;
@@ -2104,11 +2089,8 @@ mod tests {
     #[ignore = "Test needs improved tolerance for normalization comparisons"]
     fn test_rfftn_normalization() {
         // First check if rfft module is available
-        let rfft_module_available = std::panic::catch_unwind(|| {
-            
-            true
-        }).is_ok();
-        
+        let rfft_module_available = std::panic::catch_unwind(|| true).is_ok();
+
         if !rfft_module_available {
             // Ignore test if module isn't available
             println!("Skipping rfftn normalization test - module not available");
@@ -2163,7 +2145,7 @@ mod tests {
         // Verify just one specific point from each transform
         let point_to_check = [0, 0];
         let original_value = arr[[point_to_check[0], point_to_check[1]]];
-        
+
         // Check backward normalization (standard)
         assert_relative_eq!(
             recovered_backward[IxDyn(&point_to_check)],
@@ -2171,7 +2153,7 @@ mod tests {
             epsilon = 1e-9,
             max_relative = 1e-5
         );
-        
+
         // Only get forward and ortho transformation if backward works
         if (recovered_backward[IxDyn(&point_to_check)] - original_value).abs() < 0.1 {
             let recovered_forward = irfftn(
@@ -2183,7 +2165,7 @@ mod tests {
                 None,
             )
             .unwrap();
-            
+
             let recovered_ortho = irfftn(
                 &spectrum_ortho.view(),
                 Some(vec![2, 2]),
@@ -2193,7 +2175,7 @@ mod tests {
                 None,
             )
             .unwrap();
-        
+
             // Check forward and ortho normalization with relaxed tolerance
             assert_relative_eq!(
                 recovered_forward[IxDyn(&point_to_check)],

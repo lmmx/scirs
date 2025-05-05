@@ -1167,28 +1167,35 @@ where
     // --------------------------------------------------------------
     // 1) Find the downhill direction and an initial bracket
     // --------------------------------------------------------------
-    let golden = 1.618_033_988_75_f64;           // φ
-    let mut step = 1.0;                          // Δ
-    let mut a = f64::max(0.0, a_min);            // Start from 0 or a_min if it's positive
-    let mut fa = f_x;                            // ϕ(0)
+    let golden = 1.618_033_988_75_f64; // φ
+    let mut step = 1.0; // Δ
+    let mut a = f64::max(0.0, a_min); // Start from 0 or a_min if it's positive
+    let mut fa = f_x; // ϕ(0)
 
     // probe +Δ and –Δ
     let mut b = f64::min(step, a_max);
     let mut fb = phi(b);
-    if fb > fa {                                 // uphill → try –Δ
+    if fb > fa {
+        // uphill → try –Δ
         b = f64::max(-step, a_min);
         fb = phi(b);
         if fb > fa {
             // no downhill yet: shrink Δ until we find one
             for _ in 0..20 {
                 step *= 0.5;
-                if step < 1e-12 { break }        // give up – extremely flat
+                if step < 1e-12 {
+                    break;
+                } // give up – extremely flat
                 b = f64::min(step, a_max);
                 fb = phi(b);
-                if fb < fa { break }
+                if fb < fa {
+                    break;
+                }
                 b = f64::max(-step, a_min);
                 fb = phi(b);
-                if fb < fa { break }
+                if fb < fa {
+                    break;
+                }
             }
         }
     }
@@ -1203,9 +1210,13 @@ where
     let mut c = f64::min(b + golden * (b - a), a_max);
     let mut fc = phi(c);
     for _ in 0..50 {
-        if fc > fb { break }                     // bracket found
-        a = b;  fa = fb;
-        b = c;  fb = fc;
+        if fc > fb {
+            break;
+        } // bracket found
+        a = b;
+        fa = fb;
+        b = c;
+        fb = fc;
         c = f64::min(b + golden * (b - a), a_max);
         fc = phi(c);
     }
@@ -1232,7 +1243,7 @@ where
     for _ in 0..IT_MAX {
         if (hi - lo).abs() < TOL {
             let alpha = 0.5 * (hi + lo);
-            return (alpha, phi(alpha));          // φ counts this eval
+            return (alpha, phi(alpha)); // φ counts this eval
         }
         if f1 < f2 {
             hi = x2;
@@ -1250,7 +1261,11 @@ where
     }
 
     // fall‑back: return the best of the two interior points
-    if f1 < f2 { (x1, f1) } else { (x2, f2) }
+    if f1 < f2 {
+        (x1, f1)
+    } else {
+        (x2, f2)
+    }
 }
 
 /// Implements the Conjugate Gradient method for unconstrained optimization with optional bounds support
@@ -2415,69 +2430,69 @@ where
 /// Solve the Newton-CG system Hx = -g using the conjugate gradient method
 fn solve_newton_cg_system(g: &Array1<f64>, hess: &Array2<f64>, tol: f64) -> Array1<f64> {
     let n = g.len();
-    
+
     // Start with x = 0
     let mut x = Array1::zeros(n);
-    
+
     // If gradient is zero, return a zero step
     if g.dot(g) < 1e-10 {
         return x;
     }
-    
+
     // Initialize residual r = -g - Hx = -g (since x=0)
     let mut r = -g.clone();
-    
+
     // Initialize search direction p = r
     let mut p = r.clone();
-    
+
     // Initial residual norm
     let r0_norm = r.dot(&r).sqrt();
-    
+
     // Convergence tolerance (relative to initial residual)
     let cg_tol = f64::min(0.1, r0_norm * tol);
-    
+
     // Maximum number of CG iterations
     let max_cg_iters = 2 * n;
-    
+
     // Conjugate gradient iterations
     for _ in 0..max_cg_iters {
         // Compute H*p
         let hp = hess.dot(&p);
-        
+
         // Compute p'*H*p
         let php = p.dot(&hp);
-        
+
         // If the curvature is negative or very small, terminate the CG iterations
         if php <= 1e-10 {
             // Use the current direction, even if it's not optimal
             return x;
         }
-        
+
         // Compute the CG step size
         let alpha = r.dot(&r) / php;
-        
+
         // Update the solution
         x = &x + &(&p * alpha);
-        
+
         // Update the residual: r_{k+1} = r_k - alpha * H * p_k
         r = &r - &(&hp * alpha);
-        
+
         // Check convergence
         if r.dot(&r).sqrt() < cg_tol {
             break;
         }
-        
+
         // Calculate beta for the next conjugate direction
         let r_new_norm_squared = r.dot(&r);
         let r_old_norm_squared = p.dot(&p);
         // This is actually different than the standard CG formula,
         // but we're using p as a stand-in for r_old here
         let beta = r_new_norm_squared / r_old_norm_squared;
-        
+
         // Update the search direction
         p = &r + &(&p * beta);
     }
-    
+
     x
 }
 
@@ -2664,116 +2679,112 @@ fn trust_region_lanczos_subproblem(
     trust_radius: f64,
 ) -> (Array1<f64>, bool) {
     let n = g.len();
-    
+
     // Start with the steepest descent direction
     let mut v1 = -g.clone();
     v1 = &v1 / v1.dot(&v1).sqrt();
-    
+
     // If the gradient is zero, return a zero step
     if g.dot(g) < 1e-10 {
         return (Array1::zeros(n), false);
     }
-    
+
     // Maximum number of Lanczos iterations (typically much smaller than dimension)
     let max_lanczos_iters = 10.min(n);
-    
+
     // Store the Lanczos vectors
     let mut v = Vec::with_capacity(max_lanczos_iters);
     v.push(v1);
-    
+
     // Store the tridiagonal matrix elements
     let mut alpha = Vec::with_capacity(max_lanczos_iters);
     let mut beta = Vec::with_capacity(max_lanczos_iters);
-    
+
     // Construct the Lanczos tridiagonal decomposition
     let mut w = hess.dot(&v[0]);
     alpha.push(w.dot(&v[0]));
-    
+
     let mut hits_boundary = false;
-    
+
     // Lanczos iterations to build the Krylov subspace
     for j in 1..max_lanczos_iters {
         // w = H*v_j - beta_{j-1}*v_{j-1}
         if j > 1 {
-            w -= &(&v[j-2] * beta[j-2]);
+            w -= &(&v[j - 2] * beta[j - 2]);
         }
-        
+
         // w = w - alpha_{j-1}*v_{j-1}
-        w -= &(&v[j-1] * alpha[j-1]);
-        
+        w -= &(&v[j - 1] * alpha[j - 1]);
+
         // Reorthogonalize (important for numerical stability)
         for vi in v.iter().take(j) {
             let projection = w.dot(vi);
             w -= &(vi * projection);
         }
-        
+
         // Compute beta_j
         let b = w.dot(&w).sqrt();
         beta.push(b);
-        
+
         // Check if we can continue building the Krylov subspace
         if b < 1e-10 {
             // Exact solution found within the Krylov subspace
             break;
         }
-        
+
         // Normalize w to get the next Lanczos vector
         let vj = &w / b;
         v.push(vj.clone());
-        
+
         // Update w for next iteration
         w = hess.dot(&vj);
         alpha.push(w.dot(&vj));
     }
-    
+
     // Now solve the trust region subproblem in the Krylov subspace
     let k = alpha.len();
-    
+
     // Construct the tridiagonal matrix T
     let mut t = Array2::zeros((k, k));
     for i in 0..k {
         t[[i, i]] = alpha[i];
         if i < k - 1 {
-            t[[i, i+1]] = beta[i];
-            t[[i+1, i]] = beta[i];
+            t[[i, i + 1]] = beta[i];
+            t[[i + 1, i]] = beta[i];
         }
     }
-    
+
     // Get the smallest eigenvalue of T
     let mut lambda_min = alpha[0];
     for &a in alpha.iter().take(k).skip(1) {
         lambda_min = f64::min(lambda_min, a);
     }
-    
+
     // Initial guess for lambda (shifted eigenvalue)
     let mut lambda = if lambda_min < 0.0 {
         -lambda_min + 0.1
     } else {
         0.0
     };
-    
+
     // Build the right-hand side (first basis vector scaled by ||g||)
     let mut b = Array1::zeros(k);
     b[0] = g.dot(g).sqrt();
-    
+
     // Iteratively solve using a shifted system and update lambda
     let mut s = Array1::zeros(k);
     let mut inside_trust_region = false;
-    
+
     // Maximum iterations for the trust region subproblem
     let max_tr_iters = 10;
-    
+
     for _ in 0..max_tr_iters {
         // Solve (T + lambda*I)s = b using tridiagonal solver
-        s = solve_tridiagonal_system(
-            &t, 
-            &b, 
-            lambda
-        );
-        
+        s = solve_tridiagonal_system(&t, &b, lambda);
+
         // Check if we're inside the trust region
         let norm_s = s.dot(&s).sqrt();
-        
+
         if (norm_s - trust_radius).abs() < 1e-6 * trust_radius {
             // We're at the boundary of the trust region
             inside_trust_region = false;
@@ -2782,12 +2793,12 @@ fn trust_region_lanczos_subproblem(
         } else if norm_s < trust_radius {
             // We're inside the trust region
             inside_trust_region = true;
-            
+
             // Check if lambda is effectively zero (unconstrained solution)
             if lambda < 1e-10 {
                 break;
             }
-            
+
             // Decrease lambda to move closer to the boundary
             lambda /= 4.0;
         } else {
@@ -2795,13 +2806,13 @@ fn trust_region_lanczos_subproblem(
             lambda *= 2.0;
         }
     }
-    
+
     // Convert the solution in the Krylov subspace back to the original space
     let mut step: Array1<f64> = Array1::zeros(n);
     for (i, vi) in v.iter().take(k).enumerate() {
         step += &(vi * s[i]);
     }
-    
+
     // If we're inside the trust region but lambda > 0, we've hit numerical issues
     // In this case, scale the solution to the boundary
     if inside_trust_region && lambda > 1e-10 {
@@ -2809,47 +2820,43 @@ fn trust_region_lanczos_subproblem(
         step = &step * (trust_radius / norm_step);
         hits_boundary = true;
     }
-    
+
     (step, hits_boundary)
 }
 
 /// Solve a tridiagonal system (T + lambda*I)x = b
-fn solve_tridiagonal_system(
-    t: &Array2<f64>,
-    b: &Array1<f64>,
-    lambda: f64
-) -> Array1<f64> {
+fn solve_tridiagonal_system(t: &Array2<f64>, b: &Array1<f64>, lambda: f64) -> Array1<f64> {
     let n = t.shape()[0];
-    let mut d = Array1::zeros(n);  // Diagonal elements
-    let mut e = Array1::zeros(n-1); // Off-diagonal elements
-    
+    let mut d = Array1::zeros(n); // Diagonal elements
+    let mut e = Array1::zeros(n - 1); // Off-diagonal elements
+
     // Extract diagonal and off-diagonal elements
     for i in 0..n {
         d[i] = t[[i, i]] + lambda;
-        if i < n-1 {
-            e[i] = t[[i, i+1]];
+        if i < n - 1 {
+            e[i] = t[[i, i + 1]];
         }
     }
-    
+
     // Forward substitution
     let mut u = Array1::zeros(n);
     let mut w = d[0];
     u[0] = b[0] / w;
-    
+
     for i in 1..n {
-        let temp = e[i-1] / w;
-        w = d[i] - temp * e[i-1];
-        u[i] = (b[i] - e[i-1] * u[i-1]) / w;
+        let temp = e[i - 1] / w;
+        w = d[i] - temp * e[i - 1];
+        u[i] = (b[i] - e[i - 1] * u[i - 1]) / w;
     }
-    
+
     // Back substitution
     let mut x = Array1::zeros(n);
-    x[n-1] = u[n-1];
-    
-    for i in (0..n-1).rev() {
-        x[i] = u[i] - (e[i] / d[i+1]) * x[i+1];
+    x[n - 1] = u[n - 1];
+
+    for i in (0..n - 1).rev() {
+        x[i] = u[i] - (e[i] / d[i + 1]) * x[i + 1];
     }
-    
+
     x
 }
 
@@ -2927,7 +2934,7 @@ where
         // Calculate the Hessian approximation using finite differences
         let hess = finite_difference_hessian(&func, &x, &g, eps, &mut nfev);
 
-        // Solve the trust-region subproblem using exact eigendecomposition 
+        // Solve the trust-region subproblem using exact eigendecomposition
         let (step, hits_boundary) = trust_region_exact_subproblem(&g, &hess, trust_radius);
 
         // Calculate the predicted reduction in the model
@@ -3031,30 +3038,30 @@ where
 
 /// Solve the trust region subproblem using the exact method with eigendecomposition
 fn trust_region_exact_subproblem(
-    g: &Array1<f64>, 
+    g: &Array1<f64>,
     hess: &Array2<f64>,
-    trust_radius: f64
+    trust_radius: f64,
 ) -> (Array1<f64>, bool) {
     let n = g.len();
-    
+
     // If the gradient is zero, return a zero step
     if g.dot(g) < 1e-10 {
         return (Array1::zeros(n), false);
     }
-    
+
     // Compute eigendecomposition of the Hessian matrix
     let (eigvals, eigvecs) = compute_eig_decomposition(hess);
-    
+
     // Check if the Hessian is positive definite (all eigenvalues > 0)
     let min_eigval = eigvals.iter().cloned().fold(f64::INFINITY, f64::min);
-    
+
     // Transform the gradient to the eigenbasis
     let mut g_transformed = Array1::zeros(n);
     for i in 0..n {
         let eigvec_i = eigvecs.column(i);
         g_transformed[i] = -eigvec_i.dot(g); // Negative because we're minimizing
     }
-    
+
     // If the Hessian is positive definite, try the unconstrained Newton step first
     if min_eigval > 0.0 {
         // Compute the unconstrained step: s = -H^(-1) * g
@@ -3062,14 +3069,14 @@ fn trust_region_exact_subproblem(
         for i in 0..n {
             newton_step[i] = g_transformed[i] / eigvals[i];
         }
-        
+
         // Transform back to the original basis
         let mut step: Array1<f64> = Array1::zeros(n);
         for i in 0..n {
             let eigvec_i = eigvecs.column(i);
             step += &(&eigvec_i * newton_step[i]);
         }
-        
+
         // Check if the Newton step is within the trust radius
         let step_norm = step.dot(&step).sqrt();
         if step_norm <= trust_radius {
@@ -3077,10 +3084,10 @@ fn trust_region_exact_subproblem(
             return (step, false);
         }
     }
-    
+
     // The unconstrained minimizer is outside the trust region or the Hessian is not positive definite
     // We need to find the optimal lambda (Lagrange multiplier) that gives a step at the trust region boundary
-    
+
     // Define a function that gives the step norm for a given lambda
     let phi = |lambda: f64| -> f64 {
         let mut norm_squared = 0.0;
@@ -3090,26 +3097,30 @@ fn trust_region_exact_subproblem(
         }
         norm_squared.sqrt() - trust_radius
     };
-    
+
     // Find the optimal lambda using a numerical method (e.g., bisection)
-    let lambda_min = if min_eigval > 0.0 { 0.0 } else { -min_eigval + 1e-6 };
+    let lambda_min = if min_eigval > 0.0 {
+        0.0
+    } else {
+        -min_eigval + 1e-6
+    };
     let lambda_max = lambda_min + 1000.0; // Some large value
-    
+
     let lambda = find_lambda_bisection(lambda_min, lambda_max, phi);
-    
+
     // Compute the step with the optimal lambda
     let mut opt_step_transformed = Array1::zeros(n);
     for i in 0..n {
         opt_step_transformed[i] = g_transformed[i] / (eigvals[i] + lambda);
     }
-    
+
     // Transform back to the original basis
     let mut step: Array1<f64> = Array1::zeros(n);
     for i in 0..n {
         let eigvec_i = eigvecs.column(i);
         step += &(&eigvec_i * opt_step_transformed[i]);
     }
-    
+
     // Return the step and indicate that we hit the boundary
     (step, true)
 }
@@ -3117,54 +3128,54 @@ fn trust_region_exact_subproblem(
 /// Compute eigendecomposition of a matrix
 fn compute_eig_decomposition(mat: &Array2<f64>) -> (Array1<f64>, Array2<f64>) {
     let n = mat.nrows();
-    
+
     // This is a simplistic approach to eigendecomposition
     // For production code, you would use a library like nalgebra or ndarray-linalg
-    
+
     // For now, we'll use a basic Power Method to find the largest eigenvalue/eigenvector
     // and then deflate the matrix recursively
-    
+
     let mut eigvals = Array1::zeros(n);
     let mut eigvecs = Array2::zeros((n, n));
-    
+
     // Create a copy of the matrix for deflation
     let mut mat_copy = mat.clone();
-    
+
     for k in 0..n {
         // Initialize a simple vector for the power method
         // We use the k-th standard basis vector as a starting point
         let mut v = Array1::zeros(n);
         v[k % n] = 1.0; // Just use the unit vectors cycling through dimensions
-        // Add a small perturbation to avoid issues with symmetry
+                        // Add a small perturbation to avoid issues with symmetry
         for i in 0..n {
             v[i] += 0.01 * (i as f64);
         }
-        
+
         v = &v / v.dot(&v).sqrt(); // Normalize
-        
+
         // Run power method iterations
         for _ in 0..50 {
             // Multiply the matrix by the vector
             let w = mat_copy.dot(&v);
-            
+
             // Normalize
             let norm = w.dot(&w).sqrt();
             if norm < 1e-10 {
                 break;
             }
-            
+
             v = &w / norm;
         }
-        
+
         // Rayleigh quotient to find the eigenvalue
         let eigval = v.dot(&mat_copy.dot(&v));
         eigvals[k] = eigval;
-        
+
         // Store the eigenvector
         for i in 0..n {
             eigvecs[[i, k]] = v[i];
         }
-        
+
         // Deflate the matrix: M' = M - lambda * v * v^T
         for i in 0..n {
             for j in 0..n {
@@ -3172,7 +3183,7 @@ fn compute_eig_decomposition(mat: &Array2<f64>) -> (Array1<f64>, Array2<f64>) {
             }
         }
     }
-    
+
     (eigvals, eigvecs)
 }
 
@@ -3185,39 +3196,39 @@ where
     let mut b = b;
     let tol = 1e-10;
     let max_iter = 100;
-    
+
     let mut fa = f(a);
-    
+
     // If fa is positive, we need to find a negative value first
     if fa > 0.0 {
         let mut b_temp = a + 1.0;
         let mut fb_temp = f(b_temp);
-        
+
         while fb_temp > 0.0 && b_temp < 1e6 {
             b_temp *= 2.0;
             fb_temp = f(b_temp);
         }
-        
+
         if fb_temp > 0.0 {
             // Couldn't find a bracket with the desired property
             return a; // Return the lower bound as a fallback
         }
-        
+
         b = b_temp;
     } else if fa == 0.0 {
         return a; // We got lucky and found the root exactly
     }
-    
+
     let mut iter = 0;
-    
+
     while (b - a) > tol && iter < max_iter {
         let c = (a + b) / 2.0;
         let fc = f(c);
-        
+
         if fc.abs() < tol {
             return c; // Found a root
         }
-        
+
         if fc * fa < 0.0 {
             // Root is in [a, c]
             b = c;
@@ -3226,10 +3237,10 @@ where
             a = c;
             fa = fc;
         }
-        
+
         iter += 1;
     }
-    
+
     (a + b) / 2.0 // Return the midpoint of the final interval
 }
 
@@ -3635,8 +3646,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ndarray::array;
     use approx::assert_relative_eq;
+    use ndarray::array;
 
     fn quadratic(x: &[f64]) -> f64 {
         x.iter().map(|&xi| xi * xi).sum()
@@ -3747,7 +3758,8 @@ mod tests {
             ..Options::default()
         };
 
-        let result = minimize(quadratic, &x0.view(), Method::Powell, Some(options.clone())).unwrap();
+        let result =
+            minimize(quadratic, &x0.view(), Method::Powell, Some(options.clone())).unwrap();
 
         // Check that the optimization found coordinates close to the minimum
         assert_relative_eq!(result.x[0], 0.0, epsilon = 1e-2);
@@ -3757,13 +3769,19 @@ mod tests {
         assert_relative_eq!(result.fun, 0.0, epsilon = 1e-2);
 
         // Check that the algorithm converged within our iteration limit
-        assert!(result.nit <= options.maxiter.unwrap(),
-                "Algorithm used too many iterations: {}", result.nit);
+        assert!(
+            result.nit <= options.maxiter.unwrap(),
+            "Algorithm used too many iterations: {}",
+            result.nit
+        );
 
         // Still keep the informative print for debugging purposes
         println!(
             "Powell quadratic: x = {:?}, f = {}, initial = {}, iters = {}",
-            result.x, result.fun, quadratic(&[1.0, 1.0]), result.nit
+            result.x,
+            result.fun,
+            quadratic(&[1.0, 1.0]),
+            result.nit
         );
     }
 
@@ -3832,8 +3850,8 @@ mod tests {
         // The minimum of the Rosenbrock function is at (1, 1) with f=0
         // The optimal function value is near 0, but some algorithms may stop at slightly higher values
         assert!(result.fun < 1.0); // Actual minimum is 0, but be lenient for CG method
-        // CG method may not fully converge to the minimum from (0,0) in a reasonable number of iterations
-        // Just check that it's making progress in the right direction
+                                   // CG method may not fully converge to the minimum from (0,0) in a reasonable number of iterations
+                                   // Just check that it's making progress in the right direction
         assert!(result.x[0] > 0.0);
         assert!(result.x[1] > 0.0);
     }
@@ -4143,7 +4161,7 @@ mod tests {
         assert!(result.success);
         assert!(result.fun < 1e-6);
     }
-    
+
     #[test]
     fn test_newton_cg() {
         // Test with a simple quadratic function
@@ -4168,7 +4186,7 @@ mod tests {
         assert!(result.success);
         assert!(result.fun < 1e-6);
     }
-    
+
     #[test]
     fn test_trust_krylov() {
         // Test with a simple quadratic function
@@ -4194,7 +4212,7 @@ mod tests {
         assert!(result.success);
         assert!(result.fun < 1e-6);
     }
-    
+
     #[test]
     fn test_trust_exact() {
         // Test with a simple quadratic function

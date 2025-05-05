@@ -87,23 +87,23 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scirs2 = "0.1.0-alpha.1"  # Import the whole library
+scirs2 = "0.1.0-alpha.2"  # Import the whole library
 ```
 
 Or select only the modules you need:
 
 ```toml
 [dependencies]
-scirs2-linalg = "0.1.0-alpha.1"     # Linear algebra only
-scirs2-stats = "0.1.0-alpha.1"      # Statistics only
-scirs2-optimize = "0.1.0-alpha.1"   # Optimization only
+scirs2-linalg = "0.1.0-alpha.2"     # Linear algebra only
+scirs2-stats = "0.1.0-alpha.2"      # Statistics only
+scirs2-optimize = "0.1.0-alpha.2"   # Optimization only
 ```
 
 You can also enable specific features:
 
 ```toml
 [dependencies]
-scirs2-core = { version = "0.1.0-alpha.1", features = ["simd", "parallel"] }
+scirs2-core = { version = "0.1.0-alpha.2", features = ["simd", "parallel"] }
 ```
 
 ## Usage Examples

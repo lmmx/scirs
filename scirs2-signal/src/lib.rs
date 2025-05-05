@@ -40,26 +40,26 @@ pub use error::{SignalError, SignalResult};
 
 // Signal processing module structure
 pub mod convolve;
-pub mod filter;
-pub mod peak;
-pub mod resample;
-pub mod spectral;
-pub mod waveforms;
-pub mod savgol;
-pub mod wavelets;
-pub mod lti;
-pub mod lti_response;
 pub mod czt;
+pub mod denoise;
 pub mod detrend;
 pub mod dwt;
 pub mod dwt2d;
 pub mod dwt2d_image;
-pub mod denoise;
+pub mod filter;
+pub mod lti;
+pub mod lti_response;
+pub mod peak;
+pub mod resample;
+pub mod savgol;
+pub mod spectral;
 pub mod swt;
 pub mod swt2d;
+pub mod waveforms;
+pub mod wavelet_vis;
+pub mod wavelets;
 pub mod wpt;
 pub mod wpt2d;
-pub mod wavelet_vis;
 
 // Re-export commonly used functions
 pub use convolve::{convolve, correlate, deconvolve};
@@ -72,25 +72,27 @@ pub use waveforms::{chirp, gausspulse, sawtooth, square};
 pub use savgol::{savgol_coeffs, savgol_filter};
 
 // Wavelet transform functions
-pub use wavelets::{cwt, morlet, paul, ricker, complex_morlet, complex_gaussian, shannon, fbsp};
-pub use dwt::{Wavelet, WaveletFilters, dwt_decompose, dwt_reconstruct, wavedec, waverec};
+pub use dwt::{dwt_decompose, dwt_reconstruct, wavedec, waverec, Wavelet, WaveletFilters};
 pub use dwt2d::{dwt2d_decompose, dwt2d_reconstruct, wavedec2, waverec2, Dwt2dResult};
-pub use swt::{swt, iswt, swt_decompose, swt_reconstruct};
-pub use swt2d::{swt2d, swt2d_decompose, swt2d_reconstruct, iswt2d, Swt2dResult};
-pub use wpt::{wp_decompose, get_level_coefficients, reconstruct_from_nodes, WaveletPacket, WaveletPacketTree};
+pub use swt::{iswt, swt, swt_decompose, swt_reconstruct};
+pub use swt2d::{iswt2d, swt2d, swt2d_decompose, swt2d_reconstruct, Swt2dResult};
+pub use wavelets::{complex_gaussian, complex_morlet, cwt, fbsp, morlet, paul, ricker, shannon};
+pub use wpt::{
+    get_level_coefficients, reconstruct_from_nodes, wp_decompose, WaveletPacket, WaveletPacketTree,
+};
 pub use wpt2d::{wpt2d_full, wpt2d_selective, WaveletPacket2D, WaveletPacketTree2D};
 
 // LTI systems functions
-pub use lti::{LtiSystem, TransferFunction, ZerosPoleGain, StateSpace, bode};
-pub use lti::system::{tf, zpk, ss, c2d};
-pub use lti_response::{impulse_response, step_response, lsim};
+pub use lti::system::{c2d, ss, tf, zpk};
+pub use lti::{bode, LtiSystem, StateSpace, TransferFunction, ZerosPoleGain};
+pub use lti_response::{impulse_response, lsim, step_response};
 
 // Chirp Z-Transform functions
 pub use czt::{czt, czt_points};
 
 // Hilbert transform and related functions
 pub mod hilbert;
-pub use hilbert::{hilbert, envelope, instantaneous_frequency, instantaneous_phase};
+pub use hilbert::{envelope, hilbert, instantaneous_frequency, instantaneous_phase};
 
 // Detrending functions
 pub use detrend::{detrend, detrend_axis, detrend_poly};
@@ -99,15 +101,14 @@ pub use detrend::{detrend, detrend_axis, detrend_poly};
 pub use denoise::{denoise_wavelet, ThresholdMethod, ThresholdSelect};
 
 // 2D Wavelet image processing functions
-pub use dwt2d_image::{denoise_image, detect_edges, compress_image, DenoisingMethod};
+pub use dwt2d_image::{compress_image, denoise_image, detect_edges, DenoisingMethod};
 
 // Wavelet visualization utilities
 pub use wavelet_vis::{
-    arrange_coefficients_2d, arrange_multilevel_coefficients_2d,
-    calculate_energy_1d, calculate_energy_2d, calculate_energy_swt2d,
-    count_nonzero_coefficients, normalize_coefficients,
-    create_coefficient_heatmap, NormalizationStrategy, WaveletEnergy, 
-    WaveletCoeffCount, colormaps
+    arrange_coefficients_2d, arrange_multilevel_coefficients_2d, calculate_energy_1d,
+    calculate_energy_2d, calculate_energy_swt2d, colormaps, count_nonzero_coefficients,
+    create_coefficient_heatmap, normalize_coefficients, NormalizationStrategy, WaveletCoeffCount,
+    WaveletEnergy,
 };
 
 // Signal measurement functions

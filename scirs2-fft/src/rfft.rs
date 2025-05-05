@@ -190,7 +190,7 @@ where
 ///
 /// // For real input, the first dimension of the output has size (n1//2 + 1)
 /// assert_eq!(spectrum.dim(), (signal.dim().0 / 2 + 1, signal.dim().1));
-/// 
+///
 /// // Check the DC component (sum of all elements)
 /// assert_eq!(spectrum[[0, 0]].re, 10.0); // 1.0 + 2.0 + 3.0 + 4.0 = 10.0
 /// ```
@@ -251,7 +251,7 @@ where
 /// for i in 0..2 {
 ///     for j in 0..2 {
 ///         assert!((signal[[i, j]] * scaling_factor - recovered[[i, j]]).abs() < 1e-10,
-///                "Value mismatch at [{}, {}]: expected {}, got {}", 
+///                "Value mismatch at [{}, {}]: expected {}, got {}",
 ///                i, j, signal[[i, j]] * scaling_factor, recovered[[i, j]]);
 ///     }
 /// }
@@ -397,10 +397,10 @@ where
 /// for i in 0..data.len() {
 ///     data[i] = i as f64;
 /// }
-/// 
+///
 /// // Calculate the sum before moving data into the array
 /// let total_sum: f64 = data.iter().sum();
-/// 
+///
 /// let arr = Array3::from_shape_vec((3, 4, 5), data).unwrap();
 ///
 /// // Convert to dynamic view for N-dimensional functions
@@ -409,7 +409,7 @@ where
 /// // Compute 3D RFFT with all parameters
 /// // None for shape (default shape)
 /// // None for axes (default axes)
-/// // None for normalization mode (default "backward") 
+/// // None for normalization mode (default "backward")
 /// // None for overwrite_x (default false)
 /// // None for workers (default 1 worker)
 /// let spectrum = rfftn(&dynamic_view, None, None, None, None, None).unwrap();
@@ -549,7 +549,7 @@ where
 /// // Compute inverse RFFT with all parameters
 /// // Some(vec![2, 3]) for shape (required original shape)
 /// // None for axes (default axes)
-/// // None for normalization mode (default "backward") 
+/// // None for normalization mode (default "backward")
 /// // None for overwrite_x (default false)
 /// // None for workers (default 1 worker)
 /// let recovered = irfftn(&spectrum.view(), Some(vec![2, 3]), None, None, None, None).unwrap();
@@ -558,14 +558,14 @@ where
 /// // Based on our implementation's behavior, values are scaled by approximately 1/6
 /// // Compute the scaling factor from the first element's ratio
 /// let scaling_factor = arr[[0, 0]] / recovered[IxDyn(&[0, 0])];
-/// 
+///
 /// // Check that all values maintain this same ratio
 /// for i in 0..2 {
 ///     for j in 0..3 {
 ///         let original = arr[[i, j]];
 ///         let recovered_val = recovered[IxDyn(&[i, j])] * scaling_factor;
 ///         assert!((original - recovered_val).abs() < 1e-10,
-///                "Value mismatch at [{}, {}]: expected {}, got {}", 
+///                "Value mismatch at [{}, {}]: expected {}, got {}",
 ///                i, j, original, recovered_val);
 ///     }
 /// }

@@ -86,17 +86,17 @@ where
         // This is a safe transmutation since we've verified the types match
         let complex_input: &[Complex64] =
             unsafe { std::slice::from_raw_parts(x.as_ptr() as *const Complex64, x.len()) };
-        
+
         // Use a copy of the input with the DC component made real to ensure Hermitian symmetry
         let mut adjusted_input = Vec::with_capacity(complex_input.len());
         if !complex_input.is_empty() {
             // Ensure the DC component is real
             adjusted_input.push(Complex64::new(complex_input[0].re, 0.0));
-            
+
             // Copy the rest of the elements unchanged
             adjusted_input.extend_from_slice(&complex_input[1..]);
         }
-        
+
         return _hfft_complex(&adjusted_input, n, norm);
     }
 
@@ -308,7 +308,7 @@ fn _hfft_complex(x: &[Complex64], n: Option<usize>, norm: Option<&str>) -> FFTRe
 ///
 /// // Check that values are finite
 /// for val in &spectrum {
-///     assert!(val.re.is_finite() && val.im.is_finite(), 
+///     assert!(val.re.is_finite() && val.im.is_finite(),
 ///             "Values should be finite");
 /// }
 ///
@@ -320,8 +320,8 @@ fn _hfft_complex(x: &[Complex64], n: Option<usize>, norm: Option<&str>) -> FFTRe
 ///     // Just verify that the imaginary parts have opposite signs
 ///     if spectrum[1].im.abs() > 1e-10 && spectrum[2].im.abs() > 1e-10 {
 ///         let signs_opposite = spectrum[1].im * spectrum[2].im < 0.0;
-///         assert!(signs_opposite, 
-///                 "Imaginary parts should have opposite signs: {} vs {}", 
+///         assert!(signs_opposite,
+///                 "Imaginary parts should have opposite signs: {} vs {}",
 ///                 spectrum[1].im, spectrum[2].im);
 ///     }
 /// }
@@ -338,18 +338,18 @@ where
             eprintln!("Warning: Complex input provided to ihfft - extracting real component only");
             // Extract real parts only
             let real_input: Vec<f64> = unsafe {
-                let complex_input: &[Complex64] = 
+                let complex_input: &[Complex64] =
                     std::slice::from_raw_parts(x.as_ptr() as *const Complex64, x.len());
                 complex_input.iter().map(|c| c.re).collect()
             };
             return _ihfft_real(&real_input, n, norm);
         }
-        
+
         // In production, we return an error for complex input
         #[cfg(not(test))]
         {
             return Err(FFTError::ValueError(
-                "ihfft expects real-valued input, got complex".to_string()
+                "ihfft expects real-valued input, got complex".to_string(),
             ));
         }
     }
@@ -371,7 +371,7 @@ where
             real_input.push(c.re);
             continue;
         }
-        
+
         // Try direct conversion to f64
         if let Some(val_f64) = num_traits::cast::cast::<T, f64>(val) {
             real_input.push(val_f64);
@@ -578,8 +578,8 @@ fn _hfft2_complex(
     // Apply scaling factor based on normalization mode to match SciPy's behavior
     let total_elements = n_rows_out * n_cols_out;
     let scaling_factor = match norm {
-        Some("forward") => 1.0,  // For hfft2, forward normalization is already applied in fft2
-        Some("ortho") => 1.0, // For hfft2, ortho normalization is already applied in fft2
+        Some("forward") => 1.0, // For hfft2, forward normalization is already applied in fft2
+        Some("ortho") => 1.0,   // For hfft2, ortho normalization is already applied in fft2
         Some("backward") | None => total_elements as f64, // For backward mode, scale by n
         Some(other) => {
             return Err(FFTError::ValueError(format!(
@@ -712,7 +712,7 @@ fn _ihfft2_real(
     let total_elements = n_rows * n_cols;
     let scaling_factor = match norm {
         Some("backward") | None => total_elements as f64, // In backward mode, IFFT2 applies 1/n scaling, compensate with n
-        Some("forward") => 1.0,                          // In forward mode, no additional scaling needed
+        Some("forward") => 1.0, // In forward mode, no additional scaling needed
         Some("ortho") => (total_elements as f64).sqrt(), // In ortho mode, IFFT2 applies 1/sqrt(n), compensate with sqrt(n)
         Some(other) => {
             return Err(FFTError::ValueError(format!(
@@ -1024,9 +1024,9 @@ fn _hfftn_complex(
     // Calculate the total output size
     let total_elements: usize = out_shape.iter().product();
     let scaling_factor = match norm {
-        Some("forward") => total_elements as f64,  // Forward mode scales by 1/n in FFT, compensate with n
+        Some("forward") => total_elements as f64, // Forward mode scales by 1/n in FFT, compensate with n
         Some("ortho") => (total_elements as f64).sqrt(), // Ortho mode scales by 1/sqrt(n), compensate with sqrt(n)
-        Some("backward") | None => 1.0,      // Backward mode has no normalization in FFT
+        Some("backward") | None => 1.0, // Backward mode has no normalization in FFT
         Some(other) => {
             return Err(FFTError::ValueError(format!(
                 "Invalid normalization mode: {}. Expected 'forward', 'backward', or 'ortho'.",
@@ -1096,12 +1096,12 @@ fn _hfftn_complex(
 ///
 /// // Check that values are finite
 /// for (idx, val) in spectrum.indexed_iter() {
-///     assert!(val.re.is_finite() && val.im.is_finite(), 
+///     assert!(val.re.is_finite() && val.im.is_finite(),
 ///             "Values at {:?} should be finite", idx);
 /// }
 ///
 /// // Check that DC component is real
-/// assert!(spectrum[IxDyn(&[0, 0])].im.abs() < 1e-10, 
+/// assert!(spectrum[IxDyn(&[0, 0])].im.abs() < 1e-10,
 ///         "DC component should be real");
 ///
 /// // For a proper round-trip test, we'd run hfftn with the shape parameter
@@ -1285,7 +1285,14 @@ fn _ihfftn_real(
         // Process this dimension
         for i in 0..result.shape()[dim] {
             indices[dim] = i;
-            process_indices(indices, dim + 1, result, complex_result, max_dims, scaling_factor);
+            process_indices(
+                indices,
+                dim + 1,
+                result,
+                complex_result,
+                max_dims,
+                scaling_factor,
+            );
         }
     }
 
@@ -1327,7 +1334,7 @@ fn try_as_complex<T: Copy + Debug + 'static + NumCast>(val: T) -> Option<Complex
     if type_name.contains("Complex") {
         // For complex types, try to get the representation and parse it
         let debug_str = format!("{:?}", val);
-        
+
         // Try to extract re and im values using split and parse
         let re_im: Vec<f64> = debug_str
             .split(&[',', '(', ')', '{', '}', ':', ' '][..])
@@ -1388,9 +1395,15 @@ fn try_as_complex<T: Copy + Debug + 'static + NumCast>(val: T) -> Option<Complex
             return Some(Complex64::new(re_im[0], re_im[1]));
         } else if debug_str.contains("re:") && debug_str.contains("im:") {
             // For more complex representations like { re: 1.0, im: 2.0 }
-            let re_str = debug_str.split("re:").nth(1).and_then(|s| s.split(',').next());
-            let im_str = debug_str.split("im:").nth(1).and_then(|s| s.split('}').next());
-            
+            let re_str = debug_str
+                .split("re:")
+                .nth(1)
+                .and_then(|s| s.split(',').next());
+            let im_str = debug_str
+                .split("im:")
+                .nth(1)
+                .and_then(|s| s.split('}').next());
+
             if let (Some(re_s), Some(im_s)) = (re_str, im_str) {
                 if let (Ok(re), Ok(im)) = (re_s.trim().parse::<f64>(), im_s.trim().parse::<f64>()) {
                     return Some(Complex64::new(re, im));
@@ -1441,13 +1454,19 @@ mod tests {
 
         // Verify the complex output has Hermitian symmetry properties
         // DC component should be real
-        assert!(complex_result[0].im.abs() < 1e-10, 
-                "DC component imaginary part should be near zero: {}", complex_result[0].im);
+        assert!(
+            complex_result[0].im.abs() < 1e-10,
+            "DC component imaginary part should be near zero: {}",
+            complex_result[0].im
+        );
 
         // For a valid Hermitian spectrum, the complex values should follow certain patterns
         println!("Checking Hermitian symmetry in IHFFT output:");
         for i in 0..complex_result.len() {
-            println!("  [{:<2}] = {:.6} + {:.6}i", i, complex_result[i].re, complex_result[i].im);
+            println!(
+                "  [{:<2}] = {:.6} + {:.6}i",
+                i, complex_result[i].re, complex_result[i].im
+            );
         }
 
         // Now take the real values only and manually enforce Hermitian symmetry
@@ -1482,23 +1501,30 @@ mod tests {
         // Now compare the original and recovered values
         // We don't expect exact equality due to normalization differences
         let total_elements = real_input.len() as f64;
-        
+
         println!("5. Comparing original vs. recovered (with scaling):");
         for (i, &original) in real_input.iter().enumerate() {
             if i < real_vals.len() {
                 let recovered = real_vals[i];
                 // Account for scaling differences
-                println!("  [{:<2}] Original: {:.6}, Recovered/scaled: {:.6}", 
-                         i, original, recovered / total_elements);
+                println!(
+                    "  [{:<2}] Original: {:.6}, Recovered/scaled: {:.6}",
+                    i,
+                    original,
+                    recovered / total_elements
+                );
                 // Very relaxed test since we're not testing exact values here
                 assert!(
                     (original - recovered / total_elements).abs() < 5.0,
                     "Values differ too much at index {}: {} vs {}/{}",
-                    i, original, recovered, total_elements
+                    i,
+                    original,
+                    recovered,
+                    total_elements
                 );
             }
         }
-        
+
         // Test that the FFT functions at least run without error
         println!("6. Testing HFFT function:");
         let test_input = vec![
@@ -1506,14 +1532,14 @@ mod tests {
             Complex64::new(2.0, 0.0),
             Complex64::new(3.0, 0.0),
         ];
-        
+
         match hfft(&test_input, None, None) {
             Ok(result) => {
                 println!("  HFFT succeeded with {} output values", result.len());
                 for (i, val) in result.iter().enumerate() {
                     println!("  [{:<2}] = {:.6}", i, val);
                 }
-            },
+            }
             Err(e) => println!("  HFFT error: {:?}", e),
         }
     }
@@ -1522,16 +1548,18 @@ mod tests {
     fn test_real_and_complex_conversion() {
         // Test real -> complex and complex -> real conversion within Hermitian FFT functions
         // This validates that both directions of transformation work as expected
-        
+
         // Create a real-valued signal (a simple cosine pattern)
         let n = 8;
-        let signal: Vec<f64> = (0..n).map(|i| {
-            let x = i as f64 / n as f64;
-            (2.0 * std::f64::consts::PI * x).cos()
-        }).collect();
-        
+        let signal: Vec<f64> = (0..n)
+            .map(|i| {
+                let x = i as f64 / n as f64;
+                (2.0 * std::f64::consts::PI * x).cos()
+            })
+            .collect();
+
         println!("1. Created real signal with {} points", signal.len());
-        
+
         // Perform IHFFT to get complex result
         let complex_result = match ihfft(&signal, None, Some("backward")) {
             Ok(res) => res,
@@ -1540,12 +1568,19 @@ mod tests {
                 return;
             }
         };
-        
-        println!("2. Converted to complex via IHFFT, length: {}", complex_result.len());
-        
+
+        println!(
+            "2. Converted to complex via IHFFT, length: {}",
+            complex_result.len()
+        );
+
         // Verify that result length is correct (n/2 + 1)
-        assert_eq!(complex_result.len(), n/2 + 1, "Output length should be n/2 + 1");
-        
+        assert_eq!(
+            complex_result.len(),
+            n / 2 + 1,
+            "Output length should be n/2 + 1"
+        );
+
         // Convert complex back to real with HFFT
         let real_result = match hfft(&complex_result, Some(n), Some("backward")) {
             Ok(res) => res,
@@ -1554,30 +1589,39 @@ mod tests {
                 return;
             }
         };
-        
-        println!("3. Converted back to real via HFFT, length: {}", real_result.len());
-        
+
+        println!(
+            "3. Converted back to real via HFFT, length: {}",
+            real_result.len()
+        );
+
         // Verify correct length
-        assert_eq!(real_result.len(), n, "Round-trip conversion should preserve length");
-        
+        assert_eq!(
+            real_result.len(),
+            n,
+            "Round-trip conversion should preserve length"
+        );
+
         // Check approximation error (with scale factor for normalization)
         let scale_factor = n as f64;
         let mut max_error = 0.0;
-        
+
         for i in 0..n {
             let original = signal[i];
             let recovered = real_result[i] / scale_factor;
             let abs_error = (original - recovered).abs();
             max_error = f64::max(max_error, abs_error);
-            
-            if i < 3 || i > n-3 {
-                println!("  Point {}: original={:.6}, recovered/scale={:.6}, error={:.6}",
-                         i, original, recovered, abs_error);
+
+            if i < 3 || i > n - 3 {
+                println!(
+                    "  Point {}: original={:.6}, recovered/scale={:.6}, error={:.6}",
+                    i, original, recovered, abs_error
+                );
             }
         }
-        
+
         println!("4. Maximum absolute error: {:.6}", max_error);
-        
+
         // Verify the error is reasonable
         assert!(max_error < 1e-6, "Absolute error too large: {}", max_error);
     }
@@ -1586,54 +1630,72 @@ mod tests {
     fn test_hermitian_properties() {
         // Test that we can construct arrays with Hermitian symmetry
         // And that the HFFT functions correctly handle them
-        
+
         // 1. Create a complex array with controlled Hermitian symmetry
         let complex_array = vec![
-            Complex64::new(1.0, 0.0),             // DC component (real)
-            Complex64::new(2.0, 3.0),             // Positive frequency
-            Complex64::new(4.0, 0.0),             // Nyquist frequency (must be real)
-            Complex64::new(2.0, -3.0),            // Negative frequency (conjugate of the positive)
+            Complex64::new(1.0, 0.0),  // DC component (real)
+            Complex64::new(2.0, 3.0),  // Positive frequency
+            Complex64::new(4.0, 0.0),  // Nyquist frequency (must be real)
+            Complex64::new(2.0, -3.0), // Negative frequency (conjugate of the positive)
         ];
-        
+
         println!("1. Created complex array with Hermitian symmetry:");
         for (i, val) in complex_array.iter().enumerate() {
             println!("  [{:<2}] = {:.6} + {:.6}i", i, val.re, val.im);
         }
-        
+
         // 2. Verify the Hermitian symmetry properties directly
         // DC component should be real
-        assert!(complex_array[0].im.abs() < 1e-10, "DC component must be real");
-        
+        assert!(
+            complex_array[0].im.abs() < 1e-10,
+            "DC component must be real"
+        );
+
         // For a signal of length n, the Nyquist component is at index n/2
         // In our example with 4 elements, the Nyquist frequency would be at index 2
         if complex_array.len() % 2 == 0 {
             let nyquist_idx = complex_array.len() / 2;
             if nyquist_idx < complex_array.len() {
-                println!("  Nyquist component at index {}: {} + {}i", 
-                         nyquist_idx, complex_array[nyquist_idx].re, complex_array[nyquist_idx].im);
+                println!(
+                    "  Nyquist component at index {}: {} + {}i",
+                    nyquist_idx, complex_array[nyquist_idx].re, complex_array[nyquist_idx].im
+                );
                 // We already set this to be real in our test array
-                assert!(complex_array[nyquist_idx].im.abs() < 1e-10, "Nyquist component must be real");
+                assert!(
+                    complex_array[nyquist_idx].im.abs() < 1e-10,
+                    "Nyquist component must be real"
+                );
             }
         }
-        
+
         // Check conjugate pairs
-        for i in 1..complex_array.len()/2 {
+        for i in 1..complex_array.len() / 2 {
             let j = complex_array.len() - i;
             if j < complex_array.len() {
                 println!("  Checking conjugate pair: {} and {}", i, j);
-                println!("    [{:<2}] = {:.6} + {:.6}i", i, complex_array[i].re, complex_array[i].im);
-                println!("    [{:<2}] = {:.6} + {:.6}i", j, complex_array[j].re, complex_array[j].im);
-                
+                println!(
+                    "    [{:<2}] = {:.6} + {:.6}i",
+                    i, complex_array[i].re, complex_array[i].im
+                );
+                println!(
+                    "    [{:<2}] = {:.6} + {:.6}i",
+                    j, complex_array[j].re, complex_array[j].im
+                );
+
                 // Real parts should be equal
-                assert!((complex_array[i].re - complex_array[j].re).abs() < 1e-10, 
-                        "Real parts of conjugate pair should be equal");
-                
+                assert!(
+                    (complex_array[i].re - complex_array[j].re).abs() < 1e-10,
+                    "Real parts of conjugate pair should be equal"
+                );
+
                 // Imaginary parts should be negatives
-                assert!((complex_array[i].im + complex_array[j].im).abs() < 1e-10,
-                        "Imaginary parts of conjugate pair should be negatives");
+                assert!(
+                    (complex_array[i].im + complex_array[j].im).abs() < 1e-10,
+                    "Imaginary parts of conjugate pair should be negatives"
+                );
             }
         }
-        
+
         // 3. Apply HFFT to the Hermitian symmetric array
         let real_result = match hfft(&complex_array, None, Some("backward")) {
             Ok(res) => res,
@@ -1642,17 +1704,20 @@ mod tests {
                 return;
             }
         };
-        
+
         println!("3. HFFT result (real array):");
         for (i, val) in real_result.iter().enumerate() {
             println!("  [{:<2}] = {:.6}", i, val);
         }
-        
+
         // Check that the output has the expected length: 2*(n-1)
         let expected_length = 2 * (complex_array.len() - 1);
-        assert_eq!(real_result.len(), expected_length, 
-                  "HFFT output length should be 2*(n-1)");
-        
+        assert_eq!(
+            real_result.len(),
+            expected_length,
+            "HFFT output length should be 2*(n-1)"
+        );
+
         // 4. Apply IHFFT to the real array to get back to complex
         let recovered = match ihfft(&real_result, Some(complex_array.len()), Some("backward")) {
             Ok(res) => res,
@@ -1661,31 +1726,44 @@ mod tests {
                 return;
             }
         };
-        
+
         println!("4. IHFFT recovered result (complex array):");
         for (i, val) in recovered.iter().enumerate() {
             println!("  [{:<2}] = {:.6} + {:.6}i", i, val.re, val.im);
         }
-        
+
         // Check the recovered array has the correct size
-        assert_eq!(recovered.len(), complex_array.len(), 
-                  "Recovered array should have same length as original");
-        
+        assert_eq!(
+            recovered.len(),
+            complex_array.len(),
+            "Recovered array should have same length as original"
+        );
+
         // Verify original values are recovered with appropriate scaling
         let scale = expected_length as f64;
-        
+
         for i in 0..complex_array.len() {
             let original = complex_array[i];
             let scaled = recovered[i] * (1.0 / scale);
-            
-            println!("  Original [{:<2}] = {:.6} + {:.6}i", i, original.re, original.im);
-            println!("  Scaled   [{:<2}] = {:.6} + {:.6}i", i, scaled.re, scaled.im);
-            
+
+            println!(
+                "  Original [{:<2}] = {:.6} + {:.6}i",
+                i, original.re, original.im
+            );
+            println!(
+                "  Scaled   [{:<2}] = {:.6} + {:.6}i",
+                i, scaled.re, scaled.im
+            );
+
             // Use a relaxed tolerance for the comparison
-            assert!((original.re - scaled.re).abs() < 1e-6, 
-                    "Real parts should match after scaling");
-            assert!((original.im - scaled.im).abs() < 1e-6,
-                    "Imaginary parts should match after scaling");
+            assert!(
+                (original.re - scaled.re).abs() < 1e-6,
+                "Real parts should match after scaling"
+            );
+            assert!(
+                (original.im - scaled.im).abs() < 1e-6,
+                "Imaginary parts should match after scaling"
+            );
         }
     }
 
@@ -1698,8 +1776,13 @@ mod tests {
         println!("1. Original 2D signal:");
         for i in 0..2 {
             for j in 0..2 {
-                println!("  [{},{}] = {:.6} + {:.6}i", 
-                          i, j, signal[[i, j]].re, signal[[i, j]].im);
+                println!(
+                    "  [{},{}] = {:.6} + {:.6}i",
+                    i,
+                    j,
+                    signal[[i, j]].re,
+                    signal[[i, j]].im
+                );
             }
         }
 
@@ -1735,8 +1818,13 @@ mod tests {
         println!("3. Recovered signal (complex):");
         for i in 0..2 {
             for j in 0..2 {
-                println!("  [{},{}] = {:.6} + {:.6}i", 
-                          i, j, recovered[[i, j]].re, recovered[[i, j]].im);
+                println!(
+                    "  [{},{}] = {:.6} + {:.6}i",
+                    i,
+                    j,
+                    recovered[[i, j]].re,
+                    recovered[[i, j]].im
+                );
             }
         }
 
@@ -1746,9 +1834,14 @@ mod tests {
                 // For real parts, allow for the fact that recovered values may be scaled differently
                 // due to FFT normalization and the number of elements in the transform
                 let scale_factor = 16.0; // For a 2x2 array, normalization can cause a factor of 16 (4^2)
-                println!("Test entry [{},{}]: original={}, recovered={}, ratio={}",
-                    i, j, adjusted_signal[[i, j]].re, recovered[[i, j]].re, 
-                    recovered[[i, j]].re / adjusted_signal[[i, j]].re);
+                println!(
+                    "Test entry [{},{}]: original={}, recovered={}, ratio={}",
+                    i,
+                    j,
+                    adjusted_signal[[i, j]].re,
+                    recovered[[i, j]].re,
+                    recovered[[i, j]].re / adjusted_signal[[i, j]].re
+                );
                 assert_relative_eq!(
                     recovered[[i, j]].re / scale_factor,
                     adjusted_signal[[i, j]].re,
@@ -1769,14 +1862,19 @@ mod tests {
                     let actual_im = recovered[[i, j]].im;
 
                     // Just print information about imaginary parts
-                    println!("Imaginary part at [{},{}]: expected={:.6}, actual={:.6}", 
-                             i, j, expected_im, actual_im);
-                    
-                    // Due to FFT/IFFT round-trip complexities, especially in 2D, 
+                    println!(
+                        "Imaginary part at [{},{}]: expected={:.6}, actual={:.6}",
+                        i, j, expected_im, actual_im
+                    );
+
+                    // Due to FFT/IFFT round-trip complexities, especially in 2D,
                     // we'll just confirm the imaginary parts aren't unexpectedly zero
                     if expected_im.abs() > 0.1 {
-                        println!("  Imaginary magnitude: expected={:.6}, actual={:.6}", 
-                                 expected_im.abs(), actual_im.abs());
+                        println!(
+                            "  Imaginary magnitude: expected={:.6}, actual={:.6}",
+                            expected_im.abs(),
+                            actual_im.abs()
+                        );
                     }
                 }
             }
@@ -1797,40 +1895,40 @@ mod tests {
                     let x = i as f64 / n as f64;
                     let y = j as f64 / n as f64;
                     let z = k as f64 / n as f64;
-                    real_array[IxDyn(&[i, j, k])] = 
-                        (2.0 * std::f64::consts::PI * x).cos() *
-                        (4.0 * std::f64::consts::PI * y).cos() *
-                        (6.0 * std::f64::consts::PI * z).cos();
+                    real_array[IxDyn(&[i, j, k])] = (2.0 * std::f64::consts::PI * x).cos()
+                        * (4.0 * std::f64::consts::PI * y).cos()
+                        * (6.0 * std::f64::consts::PI * z).cos();
                 }
             }
         }
-        
+
         println!("1. Created real 3D array of shape {:?}", real_array.shape());
-        
+
         // Perform IHFFT to get complex result
-        let complex_result = match ihfftn(&real_array.view(), None, None, Some("backward"), None, None) {
-            Ok(res) => res,
-            Err(e) => {
-                println!("Error in ihfftn: {:?}", e);
-                return;
-            }
-        };
-        
+        let complex_result =
+            match ihfftn(&real_array.view(), None, None, Some("backward"), None, None) {
+                Ok(res) => res,
+                Err(e) => {
+                    println!("Error in ihfftn: {:?}", e);
+                    return;
+                }
+            };
+
         println!("2. IHFFTN result shape: {:?}", complex_result.shape());
-        
+
         // Check that DC component is real
         let dc_im = complex_result[IxDyn(&[0, 0, 0])].im;
         println!("3. DC component imaginary part: {}", dc_im);
         assert!(dc_im.abs() < 1e-10, "DC component should be real");
-        
+
         // Extract only real parts to avoid complex->real conversion issues
         let mut real_parts = Array::zeros(complex_result.raw_dim());
         for (idx, &val) in complex_result.indexed_iter() {
             real_parts[idx.clone()] = val.re;
         }
-        
+
         println!("4. Extracted real parts, shape: {:?}", real_parts.shape());
-        
+
         // Try to perform HFFT on the extracted real parts (should work)
         let hfft_result = match hfftn(&real_parts.view(), None, None, None, None, None) {
             Ok(res) => res,
@@ -1840,72 +1938,79 @@ mod tests {
                 Array::zeros(real_array.raw_dim())
             }
         };
-        
+
         if hfft_result.shape() == real_array.shape() {
-            println!("5. HFFTN on real parts successful, shape: {:?}", hfft_result.shape());
-            
+            println!(
+                "5. HFFTN on real parts successful, shape: {:?}",
+                hfft_result.shape()
+            );
+
             // Check a sample of points to verify we got roughly the right values
-            let points_to_check = [
-                (0, 0, 0),
-                (1, 1, 1),
-                (n-1, n-1, n-1),
-            ];
-            
+            let points_to_check = [(0, 0, 0), (1, 1, 1), (n - 1, n - 1, n - 1)];
+
             for point in &points_to_check {
                 let idx = IxDyn(&[point.0, point.1, point.2]);
                 let original = real_array[idx.clone()];
                 let recovered = hfft_result[idx.clone()];
-                
+
                 // Calculate the relative error (using very relaxed tolerance)
                 let rel_error = if original.abs() > 1e-10 {
                     (original - recovered).abs() / original.abs()
                 } else {
                     (original - recovered).abs()
                 };
-                
-                println!("  Point {:?}: original={:.6}, recovered={:.6}, rel_error={:.6}", 
-                         point, original, recovered, rel_error);
-                
+
+                println!(
+                    "  Point {:?}: original={:.6}, recovered={:.6}, rel_error={:.6}",
+                    point, original, recovered, rel_error
+                );
+
                 // For N-dimensional tests, we're merely verifying the operation completes
                 // without error, not checking numerical accuracy due to complex chain of
                 // transforms that can amplify errors significantly
                 println!("  Error at point {:?}: {:.6}", point, rel_error);
             }
         }
-        
+
         // Test Hermitian symmetry properties of complex result
         println!("6. Testing Hermitian symmetry properties:");
-        
+
         // Get actual shape of complex result to avoid out-of-bounds indices
         let shape = complex_result.shape();
         println!("  Complex result shape: {:?}", shape);
-        
+
         // Only check indices that are within bounds
         if shape.len() >= 3 {
             // Check DC component
             let dc = complex_result[IxDyn(&[0, 0, 0])];
             println!("  DC component: {:.6} + {:.6}i", dc.re, dc.im);
-            assert!(dc.im.abs() < 1e-6, "DC component should be real (or very close)");
-            
+            assert!(
+                dc.im.abs() < 1e-6,
+                "DC component should be real (or very close)"
+            );
+
             // Only check first index for safety (avoid out-of-bounds)
             if shape[0] >= 2 {
                 let point1 = IxDyn(&[1, 0, 0]);
-                let point2 = IxDyn(&[shape[0]-1, 0, 0]);
-                
+                let point2 = IxDyn(&[shape[0] - 1, 0, 0]);
+
                 // Only check if both indices are in bounds
                 if shape[0] > 1 {
                     let val1 = complex_result[point1.clone()];
                     println!("  Point {:?}: {:.6} + {:.6}i", point1, val1.re, val1.im);
-                    
+
                     // Only check conjugate if it's a different point and in bounds
                     if point2 != point1 && shape[0] > 2 {
                         let val2 = complex_result[point2.clone()];
                         println!("  Point {:?}: {:.6} + {:.6}i", point2, val2.re, val2.im);
-                        
+
                         // For Hermitian symmetry, loosely check with very relaxed tolerance
                         // Real parts should be roughly equal, imaginary parts opposite sign
-                        println!("  Real diff: {:.6}, Imag. sum: {:.6}", 
-                            (val1.re - val2.re).abs(), (val1.im + val2.im).abs());
+                        println!(
+                            "  Real diff: {:.6}, Imag. sum: {:.6}",
+                            (val1.re - val2.re).abs(),
+                            (val1.im + val2.im).abs()
+                        );
                     }
                 }
             }
@@ -1924,13 +2029,16 @@ mod tests {
             for j in 0..n {
                 let x = i as f64 / n as f64;
                 let y = j as f64 / n as f64;
-                signal[[i, j]] = (2.0 * std::f64::consts::PI * x).cos() * 
-                               (4.0 * std::f64::consts::PI * y).cos();
+                signal[[i, j]] =
+                    (2.0 * std::f64::consts::PI * x).cos() * (4.0 * std::f64::consts::PI * y).cos();
             }
         }
 
-        println!("1. Created a test 2D signal with shape {:?}", signal.shape());
-        
+        println!(
+            "1. Created a test 2D signal with shape {:?}",
+            signal.shape()
+        );
+
         // Perform IHFFT2 on the signal
         let complex_result = match ihfft2(&signal.view(), None, None, Some("backward")) {
             Ok(res) => res,
@@ -1939,49 +2047,52 @@ mod tests {
                 return;
             }
         };
-        
+
         println!("2. IHFFT2 result shape: {:?}", complex_result.shape());
-        
+
         // Check DC component is real
-        assert!(complex_result[[0, 0]].im.abs() < 1e-10, 
-                "DC component should be real: {}", complex_result[[0, 0]].im);
-        
+        assert!(
+            complex_result[[0, 0]].im.abs() < 1e-10,
+            "DC component should be real: {}",
+            complex_result[[0, 0]].im
+        );
+
         // Verify some Hermitian symmetry properties in the complex result
         for i in 0..complex_result.dim().0 {
             for j in 0..complex_result.dim().1 {
                 let idx_a = (i, j);
                 let idx_b = (
                     (complex_result.dim().0 - i) % complex_result.dim().0,
-                    (complex_result.dim().1 - j) % complex_result.dim().1
+                    (complex_result.dim().1 - j) % complex_result.dim().1,
                 );
-                
+
                 // Skip self-conjugate points
                 if idx_a == idx_b {
                     continue;
                 }
-                
+
                 // Skip one half to avoid double-checking
                 if idx_a > idx_b {
                     continue;
                 }
-                
+
                 // For debugging a few points
                 if i <= 1 && j <= 1 {
                     let val_a = complex_result[idx_a];
                     let val_b = complex_result[idx_b];
-                    
+
                     println!("  Point {:?} = {:.6} + {:.6}i", idx_a, val_a.re, val_a.im);
                     println!("  Point {:?} = {:.6} + {:.6}i", idx_b, val_b.re, val_b.im);
-                    
+
                     // Check if approximately conjugates
                     let re_diff = (val_a.re - val_b.re).abs();
                     let im_sum = (val_a.im + val_b.im).abs();
-                    
+
                     println!("  Re diff: {:.6}, Im sum: {:.6}", re_diff, im_sum);
                 }
             }
         }
-        
+
         // Now do HFFT2 on the complex result to get back a real array
         let recovered = match hfft2(&complex_result.view(), Some((n, n)), None, Some("backward")) {
             Ok(res) => res,
@@ -1990,101 +2101,107 @@ mod tests {
                 return;
             }
         };
-        
+
         println!("3. HFFT2 recovered signal shape: {:?}", recovered.shape());
-        
+
         // Check that the recovered signal is close to the original, accounting for scaling
         let scaling_factor = (n * n) as f64; // Typical scaling factor for a 2D FFT round-trip
-        
+
         let mut max_rel_error: f64 = 0.0;
         let mut avg_rel_error: f64 = 0.0;
         let mut count = 0;
-        
+
         for i in 0..n {
             for j in 0..n {
                 let original = signal[[i, j]];
                 let scaled_recovered = recovered[[i, j]] / scaling_factor;
-                
+
                 let rel_error = if original.abs() > 1e-10 {
                     (original - scaled_recovered).abs() / original.abs()
                 } else {
                     (original - scaled_recovered).abs()
                 };
-                
+
                 max_rel_error = f64::max(max_rel_error, rel_error);
                 avg_rel_error += rel_error;
                 count += 1;
-                
+
                 // Print values for a few points
                 if i <= 1 && j <= 1 {
-                    println!("  Point [{}, {}]: original={:.6}, recovered/scale={:.6}, rel_error={:.6}", 
-                             i, j, original, scaled_recovered, rel_error);
+                    println!(
+                        "  Point [{}, {}]: original={:.6}, recovered/scale={:.6}, rel_error={:.6}",
+                        i, j, original, scaled_recovered, rel_error
+                    );
                 }
             }
         }
-        
+
         avg_rel_error /= count as f64;
-        
+
         println!("4. Error statistics:");
         println!("  Max relative error: {:.6}", max_rel_error);
         println!("  Avg relative error: {:.6}", avg_rel_error);
-        
+
         // For round-trip transforms with this small test array,
         // errors can be quite large due to numerical precision and scaling
         // So we just print the errors for information, but don't enforce strict bounds
         println!("  Using relaxed error checking due to numerical sensitivity");
-        
+
         // Verify the order of magnitude is reasonable (allow large errors in test)
         // This is a very relaxed test mainly to check functionality works at all
-        assert!(max_rel_error < 10.0, "Extremely large error detected: {}", max_rel_error);
+        assert!(
+            max_rel_error < 10.0,
+            "Extremely large error detected: {}",
+            max_rel_error
+        );
     }
 
     #[test]
     fn test_hermitian_symmetry() {
         // Test the Hermitian symmetry properties directly
         println!("Testing Hermitian symmetry properties:");
-        
+
         // 1. Create a carefully constructed Hermitian-symmetric array
         let mut complex_array = Array::zeros(IxDyn(&[4, 4, 3]));
-        
+
         // DC component must be real
         complex_array[IxDyn(&[0, 0, 0])] = Complex64::new(1.0, 0.0);
-        
+
         // Set symmetric pairs with proper conjugation
         complex_array[IxDyn(&[1, 0, 0])] = Complex64::new(2.0, 3.0);
         complex_array[IxDyn(&[3, 0, 0])] = Complex64::new(2.0, -3.0); // Conjugate pair
-        
+
         complex_array[IxDyn(&[0, 1, 1])] = Complex64::new(4.0, 5.0);
         complex_array[IxDyn(&[0, 3, 2])] = Complex64::new(4.0, -5.0); // Conjugate pair
-        
+
         // Ensure Nyquist frequencies have zero imaginary part
         complex_array[IxDyn(&[2, 0, 0])] = Complex64::new(6.0, 0.0);
         complex_array[IxDyn(&[0, 2, 0])] = Complex64::new(7.0, 0.0);
         complex_array[IxDyn(&[0, 0, 2])] = Complex64::new(8.0, 0.0);
-        
+
         println!("1. Created array with controlled Hermitian symmetry");
-        
+
         // 2. Verify the symmetry by checking expected conjugate pairs
         let pairs_to_check = [
             (IxDyn(&[1, 0, 0]), IxDyn(&[3, 0, 0])),
             (IxDyn(&[0, 1, 1]), IxDyn(&[0, 3, 2])),
         ];
-        
+
         for (a, b) in &pairs_to_check {
             let val_a = complex_array[a.clone()];
             let val_b = complex_array[b.clone()];
-            
+
             println!("  Pair: {:?} and {:?}", a, b);
             println!("    A: {:.6} + {:.6}i", val_a.re, val_a.im);
             println!("    B: {:.6} + {:.6}i", val_b.re, val_b.im);
-            
+
             // Check real parts are equal
             assert_relative_eq!(val_a.re, val_b.re, epsilon = 1e-10);
-            
+
             // Check imaginary parts are negatives
             assert_relative_eq!(val_a.im, -val_b.im, epsilon = 1e-10);
         }
-        
+
         // 3. Test that HFFT correctly handles Hermitian symmetry and produces real output
         let real_result = match hfftn(&complex_array.view(), None, None, None, None, None) {
             Ok(res) => res,
@@ -2093,23 +2210,23 @@ mod tests {
                 return;
             }
         };
-        
+
         println!("3. HFFTN result shape: {:?}", real_result.shape());
-        
+
         // 4. Verify that all output values are real (implied by the type, but check anyway)
         for (idx, &val) in real_result.indexed_iter() {
             assert!(val.is_finite(), "Value at {:?} is not finite: {}", idx, val);
-            
+
             // Sample a few values for debugging
             if idx[0] <= 1 && idx[1] <= 1 && idx[2] <= 1 {
                 println!("  Point {:?} = {:.6}", idx, val);
             }
         }
-        
+
         // 5. Test IHFFT (real to complex) produces output with Hermitian symmetry
         let n = 4;
         let mut real_array = Array::zeros(IxDyn(&[n, n, n]));
-        
+
         // Fill with a simple pattern
         for i in 0..n {
             for j in 0..n {
@@ -2117,14 +2234,13 @@ mod tests {
                     let x = i as f64 / n as f64;
                     let y = j as f64 / n as f64;
                     let z = k as f64 / n as f64;
-                    real_array[IxDyn(&[i, j, k])] = 
-                        (2.0 * std::f64::consts::PI * x).cos() * 
-                        (4.0 * std::f64::consts::PI * y).cos() * 
-                        (6.0 * std::f64::consts::PI * z).cos();
+                    real_array[IxDyn(&[i, j, k])] = (2.0 * std::f64::consts::PI * x).cos()
+                        * (4.0 * std::f64::consts::PI * y).cos()
+                        * (6.0 * std::f64::consts::PI * z).cos();
                 }
             }
         }
-        
+
         // Compute IHFFT to get complex result
         println!("5. Testing IHFFT with real input");
         let complex_result = match ihfftn(&real_array.view(), None, None, None, None, None) {
@@ -2134,41 +2250,45 @@ mod tests {
                 return;
             }
         };
-        
+
         // 6. Check Hermitian symmetry in the output
         println!("6. Testing Hermitian symmetry in IHFFT output");
-        
+
         // DC component should be real
         let dc_im = complex_result[IxDyn(&[0, 0, 0])].im;
         println!("  DC component imaginary part: {}", dc_im);
         assert!(dc_im.abs() < 1e-10, "DC component should be real");
-        
+
         // Check a few conjugate pairs
         let conjugate_pairs = [
-            (IxDyn(&[1, 0, 0]), IxDyn(&[n-1, 0, 0])),
-            (IxDyn(&[0, 1, 0]), IxDyn(&[0, n-1, 0])),
-            (IxDyn(&[0, 0, 1]), IxDyn(&[0, 0, n-1])),
+            (IxDyn(&[1, 0, 0]), IxDyn(&[n - 1, 0, 0])),
+            (IxDyn(&[0, 1, 0]), IxDyn(&[0, n - 1, 0])),
+            (IxDyn(&[0, 0, 1]), IxDyn(&[0, 0, n - 1])),
         ];
-        
+
         for (a, b) in &conjugate_pairs {
             let val_a = complex_result[a.clone()];
             let val_b = complex_result[b.clone()];
-            
+
             println!("  Pair: {:?} and {:?}", a, b);
             println!("    A: {:.6} + {:.6}i", val_a.re, val_a.im);
             println!("    B: {:.6} + {:.6}i", val_b.re, val_b.im);
-            
+
             // For FFT output, use relaxed tolerance
             // Real parts should be close
             let re_diff = (val_a.re - val_b.re).abs();
-            assert!(re_diff < 1e-6 || re_diff / val_a.re.abs().max(1e-10) < 0.01, 
-                   "Real parts should be approximately equal");
-            
+            assert!(
+                re_diff < 1e-6 || re_diff / val_a.re.abs().max(1e-10) < 0.01,
+                "Real parts should be approximately equal"
+            );
+
             // Imaginary parts should be approximately negatives
             if val_a.im.abs() > 1e-6 {
                 let im_sum = (val_a.im + val_b.im).abs();
-                assert!(im_sum < 1e-6 || im_sum / val_a.im.abs().max(1e-10) < 0.01, 
-                       "Imaginary parts should be approximately negatives");
+                assert!(
+                    im_sum < 1e-6 || im_sum / val_a.im.abs().max(1e-10) < 0.01,
+                    "Imaginary parts should be approximately negatives"
+                );
             }
         }
     }

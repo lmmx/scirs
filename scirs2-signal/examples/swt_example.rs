@@ -1,9 +1,9 @@
-use plotly::{Plot, Scatter};
 use plotly::common::Mode;
-use scirs2_signal::swt::{swt, iswt};
-use scirs2_signal::dwt::Wavelet;
-use scirs2_signal::waveforms::chirp;
+use plotly::{Plot, Scatter};
 use rand::Rng;
+use scirs2_signal::dwt::Wavelet;
+use scirs2_signal::swt::{iswt, swt};
+use scirs2_signal::waveforms::chirp;
 
 fn main() {
     // Generate a chirp signal
@@ -13,7 +13,8 @@ fn main() {
 
     // Add some noise to the signal
     let mut rng = rand::rng();
-    let noisy_signal = signal.iter()
+    let noisy_signal = signal
+        .iter()
         .map(|&x| x + 0.1 * rng.random_range(-1.0..1.0))
         .collect::<Vec<f64>>();
 
@@ -39,66 +40,67 @@ fn main() {
 
     // Plot the results
     let mut plot = Plot::new();
-    
+
     // Plot the original signal
     let original_trace = Scatter::new(t.clone(), signal.clone())
         .name("Original Signal")
         .mode(Mode::Lines);
-    
+
     // Plot the noisy signal
     let noisy_trace = Scatter::new(t.clone(), noisy_signal.clone())
         .name("Noisy Signal")
         .mode(Mode::Lines);
-    
+
     // Plot the denoised signal
     let denoised_trace = Scatter::new(t.clone(), denoised_signal)
         .name("Denoised Signal")
         .mode(Mode::Lines);
-    
+
     // Add traces to the plot
     plot.add_trace(original_trace);
     plot.add_trace(noisy_trace);
     plot.add_trace(denoised_trace);
-    
+
     // Create simple layout with title and axis labels
     // Note: We're using a much simpler approach that avoids relying on internal implementation details
-    let layout = plotly::Layout::new()
-        .title("SWT Denoising Example");
-    
+    let layout = plotly::Layout::new().title("SWT Denoising Example");
+
     plot.set_layout(layout);
-    
+
     // Save the plot to an HTML file
     plot.write_html("swt_denoising_example.html");
     println!("Plot saved to swt_denoising_example.html");
 
     // Also create a plot showing the wavelet coefficients
     let mut coeffs_plot = Plot::new();
-    
+
     // Final approximation
-    let approx_trace = Scatter::new((0..approx.len()).map(|x| x as f64).collect::<Vec<f64>>(), approx.clone())
-        .name("Approximation (Level 3)")
-        .mode(Mode::Lines);
-    
+    let approx_trace = Scatter::new(
+        (0..approx.len()).map(|x| x as f64).collect::<Vec<f64>>(),
+        approx.clone(),
+    )
+    .name("Approximation (Level 3)")
+    .mode(Mode::Lines);
+
     // Detail coefficients at each level
     for (i, detail) in details.iter().enumerate() {
         let detail_trace = Scatter::new(
-            (0..detail.len()).map(|x| x as f64).collect::<Vec<f64>>(), 
-            detail.clone()
+            (0..detail.len()).map(|x| x as f64).collect::<Vec<f64>>(),
+            detail.clone(),
         )
         .name(&format!("Detail (Level {})", i + 1))
         .mode(Mode::Lines);
-        
+
         coeffs_plot.add_trace(detail_trace);
     }
-    
+
     coeffs_plot.add_trace(approx_trace);
-    
+
     // Add layout information for coefficients plot
-    let coeffs_layout = plotly::Layout::new()
-        .title("SWT Coefficients");
-    
+    let coeffs_layout = plotly::Layout::new().title("SWT Coefficients");
+
     coeffs_plot.set_layout(coeffs_layout);
-    
+
     // Save the coefficients plot to an HTML file
     coeffs_plot.write_html("swt_coefficients_example.html");
     println!("Coefficients plot saved to swt_coefficients_example.html");
@@ -111,7 +113,7 @@ fn main() {
         println!("  Detail level {}: {} coefficients", i + 1, detail.len());
     }
     println!("Final approximation: {} coefficients", approx.len());
-    
+
     // Calculate and print reconstruction error
     let mut mse = 0.0;
     for (x, y) in signal.iter().zip(reconstructed_signal.iter()) {

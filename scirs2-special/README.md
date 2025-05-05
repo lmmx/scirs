@@ -24,14 +24,14 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scirs2-special = "0.1.0-alpha.1"
+scirs2-special = "0.1.0-alpha.2"
 ```
 
 To enable optimizations through the core module, add feature flags:
 
 ```toml
 [dependencies]
-scirs2-special = { version = "0.1.0-alpha.1", features = ["parallel"] }
+scirs2-special = { version = "0.1.0-alpha.2", features = ["parallel"] }
 ```
 
 ## Usage

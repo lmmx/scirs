@@ -12,61 +12,76 @@ This module provides spatial algorithms and data structures similar to SciPy's s
   - [x] Chebyshev distance
   - [x] Minkowski distance
   - [x] Hamming distance
+  - [x] Canberra distance
+  - [x] Cosine distance
+  - [x] Correlation distance
+  - [x] Jaccard distance
   - [x] Pairwise and cross-distance matrices
 - [x] Spatial data structures
   - [x] KD-tree implementation
   - [x] Nearest neighbor queries
   - [x] Range queries
-- [x] Initial implementations (placeholder)
-  - [x] Convex hull
-  - [x] Voronoi diagrams
+- [x] Computational Geometry
+  - [x] Convex hull (using qhull)
+    - [x] Support for 2D and 3D convex hulls
+    - [x] Handling of degenerate cases
+    - [x] Function signatures with ArrayView2 support
+  - [x] Delaunay triangulation (using qhull)
+    - [x] Robust implementation with updated QHull API usage
+    - [x] Point perturbation for numerical stability
+    - [x] Special case handling for degenerate geometries
+  - [x] Voronoi diagrams (using Delaunay triangulation)
+    - [x] Special case handlers for triangles and squares
+    - [x] Robust implementation with proper error handling
+    - [x] Function signatures with ArrayView2 support
 
 ## Distance Metrics
 
-- [ ] Complete collection of distance metrics
-  - [ ] Numeric vector metrics
+- [x] Complete collection of distance metrics
+  - [x] Numeric vector metrics
     - [x] Euclidean
     - [x] Manhattan/cityblock
     - [x] Chebyshev/chessboard
     - [x] Minkowski
-    - [ ] Mahalanobis
-    - [ ] Canberra
-    - [ ] Cosine
-    - [ ] Correlation
-    - [ ] Bray-Curtis
-    - [ ] Seuclidean (standardized Euclidean)
-  - [ ] Boolean vector metrics
+    - [x] Mahalanobis
+    - [x] Canberra
+    - [x] Cosine
+    - [x] Correlation
+    - [x] Bray-Curtis
+    - [x] Seuclidean (standardized Euclidean)
+  - [x] Boolean vector metrics
     - [x] Hamming
-    - [ ] Jaccard
-    - [ ] Dice
-    - [ ] Kulsinski
-    - [ ] Rogers-Tanimoto
-    - [ ] Russell-Rao
-    - [ ] Sokal-Michener
-    - [ ] Sokal-Sneath
-    - [ ] Yule
-  - [ ] Set-based distances
-    - [ ] Earth Mover's distance (Wasserstein)
-    - [ ] Hausdorff distance
+    - [x] Jaccard
+    - [x] Dice
+    - [x] Kulsinski
+    - [x] Rogers-Tanimoto
+    - [x] Russell-Rao
+    - [x] Sokal-Michener
+    - [x] Sokal-Sneath
+    - [x] Yule
+  - [x] Set-based distances
+    - [x] Earth Mover's distance (Wasserstein)
+    - [x] Hausdorff distance
+    - [x] Gromov-Hausdorff distance
 
 ## Spatial Data Structures
 
-- [ ] Complete existing data structures
-  - [ ] Improve KD-tree performance
-    - [ ] Optimized construction algorithms
-    - [ ] Balanced tree construction
-    - [ ] Parallelization of search operations
-    - [ ] Batch query optimization
-  - [ ] Enhance nearest neighbor functionality
-    - [ ] K-nearest neighbors
-    - [ ] Radius-based neighbor finding
-    - [ ] Approximate nearest neighbors
-    - [ ] Priority queue-based algorithms
+- [x] Complete existing data structures
+  - [x] Improve KD-tree performance
+    - [x] Optimized construction algorithms
+    - [x] Balanced tree construction
+    - [x] Parallelization of search operations
+    - [x] Batch query optimization
+  - [x] Enhance nearest neighbor functionality
+    - [x] K-nearest neighbors
+    - [x] Radius-based neighbor finding
+    - [x] Approximate nearest neighbors
+    - [x] Priority queue-based algorithms
 - [ ] Add more spatial data structures
-  - [ ] Ball tree
-    - [ ] Construction algorithm
-    - [ ] Neighbor search
-    - [ ] Range queries
+  - [x] Ball tree
+    - [x] Construction algorithm
+    - [x] Neighbor search
+    - [x] Range queries
   - [ ] R-tree
     - [ ] Insertion and deletion algorithms
     - [ ] Range queries
@@ -82,22 +97,28 @@ This module provides spatial algorithms and data structures similar to SciPy's s
 ## Computational Geometry
 
 - [ ] Complete placeholder implementations
-  - [ ] Full convex hull algorithm
-    - [ ] 2D implementation (Graham scan, Jarvis march)
-    - [ ] 3D implementation
-    - [ ] N-dimensional hull
-    - [ ] Qhull integration
-  - [ ] Proper Voronoi diagram construction
-    - [ ] 2D Voronoi diagrams
+  - [x] Full convex hull algorithm
+    - [x] 2D implementation
+    - [x] 3D implementation
+    - [x] N-dimensional hull
+    - [x] Qhull integration
+    - [ ] Additional convex hull algorithms (Graham scan, Jarvis march)
+    - [ ] Comprehensive volume/area calculations
+  - [x] Proper Voronoi diagram construction
+    - [x] 2D Voronoi diagrams
+    - [x] Robust handling of degenerate inputs
+    - [x] Special case handling for triangles/squares
     - [ ] 3D Voronoi diagrams
     - [ ] Fortune's algorithm implementation
     - [ ] Integration with visualization tools
   - [ ] Spherical Voronoi diagrams
     - [ ] Construction algorithm
     - [ ] Geodesic distance calculations
-  - [ ] Delaunay triangulation
-    - [ ] 2D triangulation
-    - [ ] 3D triangulation
+  - [x] Delaunay triangulation
+    - [x] 2D triangulation with proper error handling
+    - [x] 3D triangulation
+    - [x] Robust handling of degenerate cases
+    - [x] Point perturbation for numerical stability
     - [ ] Constrained Delaunay triangulation
 - [ ] Add complex geometric algorithms
   - [ ] Alpha shapes
@@ -109,10 +130,10 @@ This module provides spatial algorithms and data structures similar to SciPy's s
   - [ ] Procrustes analysis
     - [ ] Orthogonal Procrustes
     - [ ] Extended Procrustes
-  - [ ] Polygon/polyhedron operations
-    - [ ] Point in polygon tests
-    - [ ] Area and volume calculations
-    - [ ] Intersection tests
+  - [x] Polygon/polyhedron operations
+    - [x] Point in polygon tests
+    - [x] Area and volume calculations
+    - [x] Intersection tests
     - [ ] Boolean operations (union, difference, intersection)
 
 ## Spatial Interpolation and Transforms
@@ -173,15 +194,20 @@ This module provides spatial algorithms and data structures similar to SciPy's s
   - [ ] Compact data representations
   - [ ] Caching strategies for repeated queries
   - [ ] Lazy evaluation for distance matrices
-- [ ] API design
-  - [ ] Consistent interface across all structures
-  - [ ] Flexible query parameters
+- [x] API design
+  - [x] Consistent interface across all structures
+  - [x] Flexible query parameters
+  - [x] Function signatures with ArrayView2 support
+  - [x] Proper error handling and type inference
   - [ ] Generic type parameters for custom point types
   - [ ] Integration with array ecosystem
 
 ## Documentation and Examples
 
-- [ ] Add more examples and documentation
+- [x] Add more examples and documentation
+  - [x] Proper doctest examples with correct type annotations
+  - [x] Updated example code with ArrayView2 usage
+  - [x] Error handling examples in documentation
   - [ ] Tutorial for spatial data analysis
   - [ ] Visual examples for different algorithms
   - [ ] Performance comparison of different data structures

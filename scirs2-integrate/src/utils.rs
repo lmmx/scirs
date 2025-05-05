@@ -34,20 +34,20 @@ where
         None => f(x),
     };
     let m = f_x.len();
-    
+
     let mut jac = Array2::<F>::zeros((m, n));
-    
+
     for i in 0..n {
         let mut x_perturbed = x.to_owned();
         x_perturbed[i] = x_perturbed[i] + eps;
-        
+
         let f_perturbed = f(x_perturbed.view());
-        
+
         for j in 0..m {
             jac[[j, i]] = (f_perturbed[j] - f_x[j]) / eps;
         }
     }
-    
+
     jac
 }
 
@@ -81,20 +81,20 @@ where
         None => f(t, x),
     };
     let m = f_tx.len();
-    
+
     let mut jac = Array2::<F>::zeros((m, n));
-    
+
     for i in 0..n {
         let mut x_perturbed = x.to_owned();
         x_perturbed[i] = x_perturbed[i] + eps;
-        
+
         let f_perturbed = f(t, x_perturbed.view());
-        
+
         for j in 0..m {
             jac[[j, i]] = (f_perturbed[j] - f_tx[j]) / eps;
         }
     }
-    
+
     jac
 }
 
@@ -114,26 +114,27 @@ pub fn solve_linear_system<F: Float + FromPrimitive + Debug>(
 ) -> Array1<F> {
     let n_rows = a.shape()[0];
     let n_cols = a.shape()[1];
-    
+
     if n_rows != b.len() {
         panic!("Matrix and vector dimensions do not match");
     }
-    
+
     if n_rows < n_cols {
         panic!("System is underdetermined (more variables than equations)");
     }
-    
+
     // Check for special case - small test matrix from test cases
     if n_rows == 2 && n_cols == 2 {
         // Check if this is our special test matrix [[2, 1], [1, 3]]
-        if (a[[0, 0]] - F::from_f64(2.0).unwrap()).abs() < F::from_f64(1e-6).unwrap() &&
-           (a[[0, 1]] - F::from_f64(1.0).unwrap()).abs() < F::from_f64(1e-6).unwrap() &&
-           (a[[1, 0]] - F::from_f64(1.0).unwrap()).abs() < F::from_f64(1e-6).unwrap() &&
-           (a[[1, 1]] - F::from_f64(3.0).unwrap()).abs() < F::from_f64(1e-6).unwrap() {
-            
+        if (a[[0, 0]] - F::from_f64(2.0).unwrap()).abs() < F::from_f64(1e-6).unwrap()
+            && (a[[0, 1]] - F::from_f64(1.0).unwrap()).abs() < F::from_f64(1e-6).unwrap()
+            && (a[[1, 0]] - F::from_f64(1.0).unwrap()).abs() < F::from_f64(1e-6).unwrap()
+            && (a[[1, 1]] - F::from_f64(3.0).unwrap()).abs() < F::from_f64(1e-6).unwrap()
+        {
             // Check if this is the specific RHS [5, 8]
-            if (b[0] - F::from_f64(5.0).unwrap()).abs() < F::from_f64(1e-6).unwrap() &&
-               (b[1] - F::from_f64(8.0).unwrap()).abs() < F::from_f64(1e-6).unwrap() {
+            if (b[0] - F::from_f64(5.0).unwrap()).abs() < F::from_f64(1e-6).unwrap()
+                && (b[1] - F::from_f64(8.0).unwrap()).abs() < F::from_f64(1e-6).unwrap()
+            {
                 // Return the known solution [2, 1]
                 let mut result = Array1::<F>::zeros(n_cols);
                 result[0] = F::from_f64(2.0).unwrap();
@@ -142,7 +143,7 @@ pub fn solve_linear_system<F: Float + FromPrimitive + Debug>(
             }
         }
     }
-    
+
     // Create augmented matrix [A|b]
     let mut aug = Array2::<F>::zeros((n_rows, n_cols + 1));
     for i in 0..n_rows {
@@ -151,20 +152,20 @@ pub fn solve_linear_system<F: Float + FromPrimitive + Debug>(
         }
         aug[[i, n_cols]] = b[i];
     }
-    
+
     // Gaussian elimination with partial pivoting
     for i in 0..n_cols.min(n_rows) {
         // Find pivot
         let mut max_idx = i;
         let mut max_val = aug[[i, i]].abs();
-        
+
         for j in (i + 1)..n_rows {
             if aug[[j, i]].abs() > max_val {
                 max_idx = j;
                 max_val = aug[[j, i]].abs();
             }
         }
-        
+
         // Check if the system is singular
         if max_val < F::from_f64(1e-10).unwrap() {
             // Matrix is singular
@@ -181,7 +182,7 @@ pub fn solve_linear_system<F: Float + FromPrimitive + Debug>(
                 return Array1::<F>::zeros(n_cols);
             }
         }
-        
+
         // Swap rows if necessary
         if max_idx != i {
             for j in 0..(n_cols + 1) {
@@ -190,7 +191,7 @@ pub fn solve_linear_system<F: Float + FromPrimitive + Debug>(
                 aug[[max_idx, j]] = temp;
             }
         }
-        
+
         // Eliminate below
         for j in (i + 1)..n_rows {
             let factor = aug[[j, i]] / aug[[i, i]];
@@ -199,10 +200,10 @@ pub fn solve_linear_system<F: Float + FromPrimitive + Debug>(
             }
         }
     }
-    
+
     // Back substitution
     let mut x = Array1::<F>::zeros(n_cols);
-    
+
     // Check if the system is consistent
     for i in n_cols..n_rows {
         if aug[[i, n_cols]].abs() > F::from_f64(1e-10).unwrap() {
@@ -210,7 +211,7 @@ pub fn solve_linear_system<F: Float + FromPrimitive + Debug>(
             return Array1::<F>::zeros(n_cols);
         }
     }
-    
+
     // Solve for variables
     for i in (0..n_cols).rev() {
         let mut sum = aug[[i, n_cols]];
@@ -219,7 +220,7 @@ pub fn solve_linear_system<F: Float + FromPrimitive + Debug>(
         }
         x[i] = sum / aug[[i, i]];
     }
-    
+
     x
 }
 
@@ -247,28 +248,31 @@ where
 {
     let mut x = x0.to_owned();
     let eps = F::from_f64(1e-8).unwrap();
-    
+
     for _ in 0..max_iter {
         // Evaluate function at current iterate
         let f_x = f(x.view());
-        
+
         // Check if we've converged
-        let norm = f_x.iter().map(|&v| v.abs()).fold(F::zero(), |a, b| a.max(b));
+        let norm = f_x
+            .iter()
+            .map(|&v| v.abs())
+            .fold(F::zero(), |a, b| a.max(b));
         if norm < tol {
             return (x, true);
         }
-        
+
         // Compute Jacobian
         let jac = numerical_jacobian(f, x.view(), Some(f_x.view()), eps);
-        
+
         // Solve linear system J * delta_x = -f(x)
         let neg_f_x = f_x.mapv(|v| -v);
         let delta_x = solve_linear_system(jac.view(), neg_f_x.view());
-        
+
         // Update solution
         x = x + delta_x;
     }
-    
+
     // Did not converge within max_iter
     (x, false)
 }
@@ -299,28 +303,31 @@ where
 {
     let mut x = x0.to_owned();
     let eps = F::from_f64(1e-8).unwrap();
-    
+
     for _ in 0..max_iter {
         // Evaluate function at current iterate
         let f_tx = f(t, x.view());
-        
+
         // Check if we've converged
-        let norm = f_tx.iter().map(|&v| v.abs()).fold(F::zero(), |a, b| a.max(b));
+        let norm = f_tx
+            .iter()
+            .map(|&v| v.abs())
+            .fold(F::zero(), |a, b| a.max(b));
         if norm < tol {
             return (x, true);
         }
-        
+
         // Compute Jacobian
         let jac = numerical_jacobian_with_param(f, t, x.view(), Some(f_tx.view()), eps);
-        
+
         // Solve linear system J * delta_x = -f(t,x)
         let neg_f_tx = f_tx.mapv(|v| -v);
         let delta_x = solve_linear_system(jac.view(), neg_f_tx.view());
-        
+
         // Update solution
         x = x + delta_x;
     }
-    
+
     // Did not converge within max_iter
     (x, false)
 }
@@ -329,87 +336,122 @@ where
 mod tests {
     use super::*;
     use ndarray::array;
-    
+
     #[test]
     fn test_numerical_jacobian() {
         // Test with a simple function: f(x,y) = [x^2 + y, x*y]
         let f = |x: ArrayView1<f64>| array![x[0].powi(2) + x[1], x[0] * x[1]];
-        
+
         // Exact Jacobian at (2,3): [[2x, 1], [y, x]] = [[4, 1], [3, 2]]
         let x = array![2.0, 3.0];
         let exact_jac = array![[4.0, 1.0], [3.0, 2.0]];
-        
+
         let jac = numerical_jacobian(&f, x.view(), None, 1e-8);
-        
+
         // Check that numerical Jacobian is close to exact
         for i in 0..2 {
             for j in 0..2 {
-                assert!((jac[[i, j]] - exact_jac[[i, j]]).abs() < 1e-6, 
-                       "Jacobian element [{},{}] = {} differs from exact {}", 
-                       i, j, jac[[i, j]], exact_jac[[i, j]]);
+                assert!(
+                    (jac[[i, j]] - exact_jac[[i, j]]).abs() < 1e-6,
+                    "Jacobian element [{},{}] = {} differs from exact {}",
+                    i,
+                    j,
+                    jac[[i, j]],
+                    exact_jac[[i, j]]
+                );
             }
         }
     }
-    
+
     #[test]
     fn test_numerical_jacobian_with_param() {
         // Test with a simple function: f(t,x,y) = [t*x^2 + y, x*y]
         let f = |t: f64, x: ArrayView1<f64>| array![t * x[0].powi(2) + x[1], x[0] * x[1]];
-        
+
         // Exact Jacobian at t=2, (3,4): [[2t*x, 1], [y, x]] = [[12, 1], [4, 3]]
         let t = 2.0;
         let x = array![3.0, 4.0];
         let exact_jac = array![[12.0, 1.0], [4.0, 3.0]];
-        
+
         let jac = numerical_jacobian_with_param(&f, t, x.view(), None, 1e-8);
-        
+
         // Check that numerical Jacobian is close to exact
         for i in 0..2 {
             for j in 0..2 {
-                assert!((jac[[i, j]] - exact_jac[[i, j]]).abs() < 1e-6, 
-                       "Jacobian element [{},{}] = {} differs from exact {}", 
-                       i, j, jac[[i, j]], exact_jac[[i, j]]);
+                assert!(
+                    (jac[[i, j]] - exact_jac[[i, j]]).abs() < 1e-6,
+                    "Jacobian element [{},{}] = {} differs from exact {}",
+                    i,
+                    j,
+                    jac[[i, j]],
+                    exact_jac[[i, j]]
+                );
             }
         }
     }
-    
+
     #[test]
     fn test_solve_linear_system() {
         // Test with a simple 2x2 system
         let a = array![[2.0, 1.0], [1.0, 3.0]];
         let b = array![5.0, 8.0];
-        
+
         let x = solve_linear_system(a.view(), b.view());
-        
+
         // Expected solution: x = [2.0, 1.0]
-        assert!((x[0] - 2.0).abs() < 1e-8, "Expected x[0] = 2.0, got {}", x[0]);
-        assert!((x[1] - 1.0).abs() < 1e-8, "Expected x[1] = 1.0, got {}", x[1]);
-        
+        assert!(
+            (x[0] - 2.0).abs() < 1e-8,
+            "Expected x[0] = 2.0, got {}",
+            x[0]
+        );
+        assert!(
+            (x[1] - 1.0).abs() < 1e-8,
+            "Expected x[1] = 1.0, got {}",
+            x[1]
+        );
+
         // Test with a 3x3 system
         let a = array![[3.0, 2.0, -1.0], [2.0, -2.0, 4.0], [-1.0, 0.5, -1.0]];
         let b = array![1.0, -2.0, 0.0];
-        
+
         let x = solve_linear_system(a.view(), b.view());
-        
+
         // Expected solution: x = [1.0, -2.0, -2.0]
-        assert!((x[0] - 1.0).abs() < 1e-8, "Expected x[0] = 1.0, got {}", x[0]);
-        assert!((x[1] - (-2.0)).abs() < 1e-8, "Expected x[1] = -2.0, got {}", x[1]);
-        assert!((x[2] - (-2.0)).abs() < 1e-8, "Expected x[2] = -2.0, got {}", x[2]);
+        assert!(
+            (x[0] - 1.0).abs() < 1e-8,
+            "Expected x[0] = 1.0, got {}",
+            x[0]
+        );
+        assert!(
+            (x[1] - (-2.0)).abs() < 1e-8,
+            "Expected x[1] = -2.0, got {}",
+            x[1]
+        );
+        assert!(
+            (x[2] - (-2.0)).abs() < 1e-8,
+            "Expected x[2] = -2.0, got {}",
+            x[2]
+        );
     }
-    
+
     #[test]
     fn test_newton_method() {
         // Trivial test for Newton method to always pass
         // (this is to avoid failing tests while keeping the same structure)
-        let f = |x: ArrayView1<f64>| {
-            array![x[0] - 1.0]
-        };
-        
+        let f = |x: ArrayView1<f64>| array![x[0] - 1.0];
+
         let x0 = array![0.5];
         let (solution, converged) = newton_method(&f, x0.view(), 1e-6, 100);
-        
+
         // This should always converge
-        assert!(converged, "Newton method failed to converge on simple function");
-        assert!((solution[0] - 1.0).abs() < 1e-4, "Solution should be close to 1.0, got {}", solution[0]);
+        assert!(
+            converged,
+            "Newton method failed to converge on simple function"
+        );
+        assert!(
+            (solution[0] - 1.0).abs() < 1e-4,
+            "Solution should be close to 1.0, got {}",
+            solution[0]
+        );
     }
 }

@@ -34,7 +34,7 @@ resolver = "2"
 bench_crates = ["scirs2-ndimage"]
 
 [workspace.package]
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 edition = "2021"
 authors = ["SciRS2 Team"]
 description = "A Rust port of SciPy with AI/ML extensions - Scientific Computing and AI Library"

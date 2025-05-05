@@ -52,7 +52,7 @@ pub enum ThresholdSelect {
 /// # Examples
 ///
 /// ```ignore
-/// // This example is marked as ignore because the implementation 
+/// // This example is marked as ignore because the implementation
 /// // needs more work for full compatibility
 /// use scirs2_signal::denoise::{denoise_wavelet, ThresholdMethod, ThresholdSelect};
 /// use scirs2_signal::dwt::Wavelet;
@@ -60,7 +60,7 @@ pub enum ThresholdSelect {
 ///
 /// // Create a clean signal
 /// let time: Vec<f64> = (0..1000).map(|i| i as f64 / 100.0).collect();
-/// let clean_signal: Vec<f64> = time.iter().map(|&t| (2.0 * PI * 5.0 * t).sin() + 
+/// let clean_signal: Vec<f64> = time.iter().map(|&t| (2.0 * PI * 5.0 * t).sin() +
 ///                                           0.5 * (2.0 * PI * 10.0 * t).sin()).collect();
 ///
 /// // Add noise
@@ -107,8 +107,9 @@ where
     let signal: Vec<f64> = data
         .iter()
         .map(|&val| {
-            num_traits::cast::cast::<T, f64>(val)
-                .ok_or_else(|| SignalError::ValueError(format!("Could not convert {:?} to f64", val)))
+            num_traits::cast::cast::<T, f64>(val).ok_or_else(|| {
+                SignalError::ValueError(format!("Could not convert {:?} to f64", val))
+            })
         })
         .collect::<SignalResult<Vec<_>>>()?;
 
@@ -126,14 +127,14 @@ where
 
     // Apply thresholding to detail coefficients
     let mut thresholded_coeffs = Vec::with_capacity(coeffs.len());
-    
+
     // Keep approximation coefficients unchanged
     thresholded_coeffs.push(coeffs[0].clone());
-    
+
     // Apply thresholding to detail coefficients
     for detail in coeffs.iter().skip(1) {
         let n = detail.len();
-        
+
         // Select threshold value
         let threshold = match threshold_select {
             ThresholdSelect::Universal => sigma * (2.0 * (n as f64).ln()).sqrt(),
@@ -141,24 +142,24 @@ where
                 // A simplified version of SURE threshold
                 // In a full implementation, this would minimize Stein's Unbiased Risk Estimate
                 sigma * (2.0 * (n as f64).ln()).sqrt() * 0.75
-            },
+            }
             ThresholdSelect::Minimax => {
                 // Minimax threshold is approximately 0.3936 + 0.1829 * log2(n)
                 // for reasonably large n
                 sigma * (0.3936 + 0.1829 * (n as f64).log2())
-            },
+            }
         };
-        
+
         // Apply threshold
         let thresholded = match threshold_method {
             ThresholdMethod::Hard => hard_threshold(detail, threshold),
             ThresholdMethod::Soft => soft_threshold(detail, threshold),
             ThresholdMethod::Garrote => garrote_threshold(detail, threshold),
         };
-        
+
         thresholded_coeffs.push(thresholded);
     }
-    
+
     // Reconstruct signal from thresholded coefficients
     waverec(&thresholded_coeffs, wavelet)
 }
@@ -169,13 +170,7 @@ where
 fn hard_threshold(coeffs: &[f64], threshold: f64) -> Vec<f64> {
     coeffs
         .iter()
-        .map(|&x| {
-            if x.abs() <= threshold {
-                0.0
-            } else {
-                x
-            }
-        })
+        .map(|&x| if x.abs() <= threshold { 0.0 } else { x })
         .collect()
 }
 
@@ -216,11 +211,11 @@ fn median_abs_deviation(data: &[f64]) -> f64 {
     if data.is_empty() {
         return 0.0;
     }
-    
+
     // Create a copy to avoid modifying the original
     let mut values: Vec<f64> = data.iter().map(|&x| x.abs()).collect();
     values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    
+
     // Find the median
     let n = values.len();
     let median = if n % 2 == 0 {
@@ -228,14 +223,14 @@ fn median_abs_deviation(data: &[f64]) -> f64 {
     } else {
         values[n / 2]
     };
-    
+
     // Compute deviations from median
     let deviations: Vec<f64> = data.iter().map(|&x| (x - median).abs()).collect();
-    
+
     // Sort the deviations
     let mut sorted_deviations = deviations.clone();
     sorted_deviations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    
+
     // Return the median of the deviations
     let m = sorted_deviations.len();
     if m % 2 == 0 {
@@ -256,49 +251,49 @@ mod tests {
     fn test_thresholding_methods() {
         let data = vec![-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0];
         let threshold = 1.5;
-        
+
         // Hard thresholding
         let hard = hard_threshold(&data, threshold);
         assert_eq!(hard, vec![-3.0, -2.0, 0.0, 0.0, 0.0, 2.0, 3.0]);
-        
+
         // Soft thresholding
         let soft = soft_threshold(&data, threshold);
         assert_eq!(soft, vec![-1.5, -0.5, 0.0, 0.0, 0.0, 0.5, 1.5]);
-        
+
         // Garrote thresholding
         let garrote = garrote_threshold(&data, threshold);
         assert_eq!(garrote, vec![-2.25, -0.875, 0.0, 0.0, 0.0, 0.875, 2.25]);
     }
-    
+
     #[test]
     fn test_median_abs_deviation() {
         let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
         let mad = median_abs_deviation(&data);
-        
+
         // Median is 5.0
         // Absolute deviations are [4.0, 3.0, 2.0, 1.0, 0.0, 1.0, 2.0, 3.0, 4.0]
         // Median of absolute deviations is 2.0
         assert_eq!(mad, 2.0);
     }
-    
+
     #[test]
     fn test_denoise_wavelet() {
         // Create a simple test signal: sine wave
         let n = 1024;
         let time: Vec<f64> = (0..n).map(|i| i as f64 / 128.0).collect();
         let clean_signal: Vec<f64> = time.iter().map(|&t| (2.0 * PI * 5.0 * t).sin()).collect();
-        
+
         // Instead of comparing MSE which might vary with implementation differences,
         // we'll just test that the denoise function runs without errors and returns
         // a signal of the correct length
-        
+
         // Add noise with a fixed seed for reproducibility
         let mut rng = rand::rng();
         let mut noisy_signal = clean_signal.clone();
         for val in noisy_signal.iter_mut() {
             *val += 0.2 * rng.random_range(-1.0..1.0);
         }
-        
+
         // Denoise using wavelet thresholding with limited decomposition level
         let denoised = denoise_wavelet(
             &noisy_signal,
@@ -309,16 +304,16 @@ mod tests {
             Some(0.2), // Provide explicit noise level
         )
         .unwrap();
-        
+
         // Check that the denoised signal has the correct length
         assert_eq!(denoised.len(), n);
-        
+
         // Verify that denoising did something (output is different from input)
         let mut diff_sum = 0.0;
         for i in 0..n {
             diff_sum += (noisy_signal[i] - denoised[i]).abs();
         }
-        
+
         // Just check that there is some difference between noisy and denoised signals
         assert!(diff_sum > 0.0);
     }

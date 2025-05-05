@@ -150,15 +150,15 @@ fn main() {
         romberg_2d_result,
         (romberg_2d_result - exact_result_2d).abs()
     );
-    
+
     // ODE solver comparison
     println!("\nODE solver comparison:");
     println!("Solving y' = -y, y(0) = 1, exact solution: y(t) = exp(-t)");
     println!("Comparing at t = 10, exact = 4.5399e-5");
-    
+
     let exact_ode_result = (-10.0_f64).exp();
     let decay_system = |_t: f64, y: ArrayView1<f64>| array![-y[0]];
-    
+
     // Create a map of methods to test
     let methods = [
         ("RK23", ODEMethod::RK23),
@@ -168,7 +168,7 @@ fn main() {
         ("Radau (experimental)", ODEMethod::Radau),
         ("LSODA (experimental)", ODEMethod::LSODA),
     ];
-    
+
     for (method_name, method) in methods {
         let result = time_integration(&format!("{method_name}"), || {
             solve_ivp(
@@ -184,7 +184,7 @@ fn main() {
                 }),
             )
         });
-        
+
         match result {
             Ok(res) => {
                 let y_final = res.y.last().unwrap()[0];

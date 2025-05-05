@@ -4,8 +4,8 @@
 
 use crate::error::{IntegrateError, IntegrateResult};
 use ndarray::{Array1, ArrayView1, ScalarOperand};
-use std::fmt::Debug;
 use num_traits::{Float, FromPrimitive};
+use std::fmt::Debug;
 
 /// Method options for ODE solvers
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -157,7 +157,14 @@ pub fn solve_ivp<F, Func>(
     options: Option<ODEOptions<F>>,
 ) -> IntegrateResult<ODEResult<F>>
 where
-    F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign + std::ops::MulAssign,
+    F: Float
+        + FromPrimitive
+        + Debug
+        + ScalarOperand
+        + std::ops::AddAssign
+        + std::ops::SubAssign
+        + std::ops::DivAssign
+        + std::ops::MulAssign,
     Func: Fn(F, ArrayView1<F>) -> Array1<F>,
 {
     let opts = options.unwrap_or_default();
@@ -212,9 +219,9 @@ where
                 // Otherwise use the original options
                 ..opts
             };
-            
+
             lsoda_method(f, t_span, y0, lsoda_opts)
-        },
+        }
     }
 }
 
@@ -1530,7 +1537,7 @@ mod tests {
             array![1.0],
             Some(ODEOptions {
                 method: ODEMethod::DOP853,
-                rtol: 1e-8,        // Tighter tolerances for high-order method
+                rtol: 1e-8, // Tighter tolerances for high-order method
                 atol: 1e-10,
                 ..Default::default()
             }),
@@ -1543,15 +1550,22 @@ mod tests {
 
         // Note: This is a simplified DOP853 implementation, so accuracy is limited
         // In a complete implementation with all correct coefficients, we would expect much better accuracy
-        assert!((final_y - exact).abs() < 0.7, 
-               "DOP853 error too large: |{} - {}| = {}", final_y, exact, (final_y - exact).abs());
+        assert!(
+            (final_y - exact).abs() < 0.7,
+            "DOP853 error too large: |{} - {}| = {}",
+            final_y,
+            exact,
+            (final_y - exact).abs()
+        );
 
         // Verify the method used
         assert_eq!(result.method, ODEMethod::DOP853);
-        
+
         // DOP853 should take fewer steps than lower-order methods due to higher accuracy
-        println!("DOP853 completed in {} steps with {} evaluations", 
-                 result.n_steps, result.n_eval);
+        println!(
+            "DOP853 completed in {} steps with {} evaluations",
+            result.n_steps, result.n_eval
+        );
     }
 
     #[test]
@@ -1577,12 +1591,17 @@ mod tests {
         let final_y = result.y.last().unwrap()[0];
 
         // Radau should be fairly accurate even for this simple problem
-        assert!((final_y - exact).abs() < 0.1,
-               "Radau error too large: |{} - {}| = {}", final_y, exact, (final_y - exact).abs());
+        assert!(
+            (final_y - exact).abs() < 0.1,
+            "Radau error too large: |{} - {}| = {}",
+            final_y,
+            exact,
+            (final_y - exact).abs()
+        );
 
         // Verify the method used
         assert_eq!(result.method, ODEMethod::Radau);
-        
+
         // Check that message contains Newton iteration info
         assert!(result.message.is_some());
         assert!(result
@@ -1590,23 +1609,25 @@ mod tests {
             .as_ref()
             .unwrap()
             .contains("Newton iterations"));
-        
-        println!("Radau completed in {} steps with {} evaluations", 
-                 result.n_steps, result.n_eval);
+
+        println!(
+            "Radau completed in {} steps with {} evaluations",
+            result.n_steps, result.n_eval
+        );
     }
-    
+
     #[test]
     #[ignore] // Skip until Radau is improved - experimental implementation
     fn test_radau_stiff_problem() {
         // Test with a stiff problem: Van der Pol oscillator with large μ
         // y'' - μ(1-y²)y' + y = 0
         // As a system: y0' = y1, y1' = μ(1-y0²)y1 - y0
-        
+
         let mu = 10.0; // Stiffness parameter
-        
+
         let van_der_pol =
             |_t: f64, y: ArrayView1<f64>| array![y[1], mu * (1.0 - y[0].powi(2)) * y[1] - y[0]];
-        
+
         // Solve with Radau (good for stiff problems)
         let result = solve_ivp(
             van_der_pol,
@@ -1621,15 +1642,15 @@ mod tests {
             }),
         )
         .unwrap();
-        
+
         // We don't have an analytical solution to check against,
         // but we can verify the method completed successfully
         assert!(result.success);
-        
+
         // Check that we have reasonable number of steps
         assert!(result.n_steps > 0);
         assert!(result.y.len() > 0);
-        
+
         // The solution should be moving toward the limit cycle
         // Verify that the final values are reasonable (not NaN or extremely large)
         let final_y = result.y.last().unwrap();
@@ -1637,9 +1658,11 @@ mod tests {
         assert!(final_y[1].is_finite());
         assert!(final_y[0].abs() < 10.0);
         assert!(final_y[1].abs() < 10.0);
-        
-        println!("Radau on stiff problem completed in {} steps with {} evaluations", 
-                 result.n_steps, result.n_eval);
+
+        println!(
+            "Radau on stiff problem completed in {} steps with {} evaluations",
+            result.n_steps, result.n_eval
+        );
     }
 
     #[test]
@@ -1701,35 +1724,35 @@ where
 {
     // Dormand-Prince 8(5,3) method coefficients
     // This is an 8th order method with embedded 5th order error estimate
-    
+
     // Time fractions for stages (c)
     let c = [
         F::zero(),
-        F::from_f64(0.0833333333333333).unwrap(),     // 1/12
-        F::from_f64(0.1666666666666667).unwrap(),     // 1/6
-        F::from_f64(0.25).unwrap(),                   // 1/4
-        F::from_f64(0.3333333333333333).unwrap(),     // 1/3
-        F::from_f64(0.5).unwrap(),                    // 1/2
-        F::from_f64(0.6666666666666666).unwrap(),     // 2/3
-        F::from_f64(0.75).unwrap(),                   // 3/4
-        F::from_f64(0.8333333333333334).unwrap(),     // 5/6
-        F::from_f64(0.9166666666666666).unwrap(),     // 11/12
-        F::one(),                                      // 1
-        F::one(),                                      // 1
+        F::from_f64(0.0833333333333333).unwrap(), // 1/12
+        F::from_f64(0.1666666666666667).unwrap(), // 1/6
+        F::from_f64(0.25).unwrap(),               // 1/4
+        F::from_f64(0.3333333333333333).unwrap(), // 1/3
+        F::from_f64(0.5).unwrap(),                // 1/2
+        F::from_f64(0.6666666666666666).unwrap(), // 2/3
+        F::from_f64(0.75).unwrap(),               // 3/4
+        F::from_f64(0.8333333333333334).unwrap(), // 5/6
+        F::from_f64(0.9166666666666666).unwrap(), // 11/12
+        F::one(),                                 // 1
+        F::one(),                                 // 1
     ];
-    
+
     // The a_ij coefficients for each stage are too numerous to list directly
     // These are the coefficients for each stage's dependency on previous stages
     // For a detailed reference, see:
-    // Hairer, E.; Nørsett, S. P.; Wanner, G. (1993), 
-    // Solving Ordinary Differential Equations I: Nonstiff Problems, 
+    // Hairer, E.; Nørsett, S. P.; Wanner, G. (1993),
+    // Solving Ordinary Differential Equations I: Nonstiff Problems,
     // Berlin, New York: Springer-Verlag
-    
+
     // Main coefficients for 8th order solution
     let b8 = [
         F::from_f64(0.0345868554226).unwrap(),
         F::zero(),
-        F::zero(), 
+        F::zero(),
         F::zero(),
         F::from_f64(0.0).unwrap(),
         F::from_f64(0.1907678311066).unwrap(),
@@ -1740,7 +1763,7 @@ where
         F::from_f64(0.0102338843462).unwrap(),
         F::from_f64(-0.0020442429518).unwrap(),
     ];
-    
+
     // Coefficients for 5th order error estimation
     let b5 = [
         F::from_f64(0.0579857040552).unwrap(),
@@ -1756,7 +1779,7 @@ where
         F::zero(),
         F::zero(),
     ];
-    
+
     // Error coefficients (b8 - b5)
     let e = [
         b8[0] - b5[0],
@@ -1765,14 +1788,14 @@ where
         b8[3] - b5[3],
         b8[4] - b5[4],
         b8[5] - b5[5],
-        b8[6] - b5[6], 
+        b8[6] - b5[6],
         b8[7] - b5[7],
         b8[8] - b5[8],
         b8[9] - b5[9],
         b8[10] - b5[10],
         b8[11] - b5[11],
     ];
-    
+
     // Determine initial step size if not provided
     let h0 = opts.h0.unwrap_or_else(|| {
         // Simple heuristic for initial step size for high-order method
@@ -1780,87 +1803,87 @@ where
         let span = t_span[1] - t_span[0];
         span / F::from_usize(200).unwrap() * opts.first_step_factor
     });
-    
+
     // Determine minimum and maximum step sizes
     let min_step = opts.min_step.unwrap_or_else(|| {
         let span = t_span[1] - t_span[0];
         // For implicit methods like Radau, setting min_step too small can cause issues
         span * F::from_f64(1e-8).unwrap() // Minimal step size increased for stability
     });
-    
+
     let max_step = opts.max_step.unwrap_or_else(|| {
         t_span[1] - t_span[0] // Maximum step can be the whole interval
     });
-    
+
     // Initialize
     let [t_start, t_end] = t_span;
     let mut t = t_start;
     let mut y = y0.clone();
     let mut h = h0;
-    
+
     let mut t_values = vec![t];
     let mut y_values = vec![y.clone()];
     let mut step_count = 0;
     let mut accepted_steps = 0;
     let mut rejected_steps = 0;
     let mut func_evals = 0;
-    
+
     let n_dim = y0.len();
-    
+
     // Prepare a vector for storing k values (slopes at different substeps)
     // DOP853 has 12 stages
     let mut k = vec![Array1::zeros(n_dim); 12];
-    
+
     while t < t_end && step_count < opts.max_steps {
         step_count += 1;
-        
+
         // Adjust step size for the last step if needed
         if t + h > t_end {
             h = t_end - t;
         }
-        
+
         // Limit step size to max_step
         if h > max_step {
             h = max_step;
         }
-        
+
         // Calculate the first k value (initial slope)
         k[0] = f(t, y.view());
         func_evals += 1;
-        
+
         // A simplified version of the algorithm - in a complete implementation
         // we would need to include all the a_ij coefficients for each stage
         // The implementation is very similar to RK45 but with more stages
-        
+
         // Here, for demonstration and simplicity, we'll use a simplified approach
-        // For a complete implementation, we would need to add all the 
+        // For a complete implementation, we would need to add all the
         // stage calculations with the correct a_ij coefficients
-        
+
         // For a proper implementation, we would need around 100 more
         // lines of code here to implement all stages correctly
-        
+
         // Simplified calculation of stages 1-11
-        // In a real implementation, each stage would be calculated 
+        // In a real implementation, each stage would be calculated
         // using the appropriate coefficients
         for i in 1..12 {
             // Create a temporary vector for the next evaluation
             let mut y_temp = y.clone();
-            
+
             // We approximate the stage calculation here
             // In a real implementation, we would do a weighted sum
             // of all previous k values according to the coefficients
-            
+
             // Simplified approach: use the average step with appropriate weighting
             if i > 0 {
-                y_temp = y_temp + k[i-1].clone() * (h * c[i]);
+                y_temp = y_temp + k[i - 1].clone() * (h * c[i]);
             }
-            
+
             // Evaluate the function at this stage
             let t_temp = t + c[i] * h;
             k[i] = f(t_temp, y_temp.view());
             func_evals += 1;
         }
-        
+
         // Use 8th order formula to compute the solution
         let mut y_new = y.clone();
         for i in 0..12 {
@@ -1868,7 +1891,7 @@ where
                 y_new = y_new + k[i].clone() * (h * b8[i]);
             }
         }
-        
+
         // Use 5th order formula to estimate error
         let mut y_err = Array1::<F>::zeros(n_dim);
         for i in 0..12 {
@@ -1876,7 +1899,7 @@ where
                 y_err = y_err + k[i].clone() * (h * e[i]);
             }
         }
-        
+
         // Compute error estimate and scale relative to tolerance
         let mut err = F::zero();
         for i in 0..n_dim {
@@ -1884,38 +1907,38 @@ where
             let e_i = y_err[i] / sc;
             err = err.max(e_i.abs());
         }
-        
+
         // Determine if step is acceptable
         if err <= F::one() {
             // Accept step
             t = t + h;
             y = y_new;
-            
+
             // Store results
             t_values.push(t);
             y_values.push(y.clone());
-            
+
             accepted_steps += 1;
         } else {
             // Reject step
             rejected_steps += 1;
         }
-        
+
         // Compute next step size using error-based controller
         let order = F::from_f64(8.0).unwrap(); // 8th order method
         let exponent = F::one() / order;
-        
+
         if err == F::zero() {
             h = h * opts.factor_max;
         } else {
             let factor = opts.safety * (F::one() / err).powf(exponent);
             h = h * factor.min(opts.factor_max).max(opts.factor_min);
         }
-        
+
         // Ensure step size is within bounds
         h = h.max(min_step).min(max_step);
     }
-    
+
     let success = t >= t_end;
     let message = if !success {
         Some(format!(
@@ -1925,7 +1948,7 @@ where
     } else {
         None
     };
-    
+
     Ok(ODEResult {
         t: t_values,
         y: y_values,
@@ -1949,37 +1972,42 @@ fn radau_method<F, Func>(
     opts: ODEOptions<F>,
 ) -> IntegrateResult<ODEResult<F>>
 where
-    F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign,
+    F: Float
+        + FromPrimitive
+        + Debug
+        + ScalarOperand
+        + std::ops::AddAssign
+        + std::ops::SubAssign
+        + std::ops::DivAssign,
     Func: Fn(F, ArrayView1<F>) -> Array1<F>,
 {
     use ndarray::Array2;
 
     // Radau IIA coefficients based on Butcher tableau
     // The method uses 3 stages for its 5th order implicit formulation
-    
+
     // Define the square root of 6 (appears in Butcher tableau)
     let s6 = F::from_f64(6.0).unwrap().sqrt();
-    
+
     // Node points for Radau IIA method (abscissae)
     let c = [
         F::from_f64(0.4).unwrap() - F::from_f64(0.1).unwrap() * s6,
         F::from_f64(0.4).unwrap() + F::from_f64(0.1).unwrap() * s6,
         F::one(),
     ];
-    
+
     // Error estimation coefficients
     let e = [
         (F::from_f64(-13.0).unwrap() - F::from_f64(7.0).unwrap() * s6) / F::from_f64(3.0).unwrap(),
         (F::from_f64(-13.0).unwrap() + F::from_f64(7.0).unwrap() * s6) / F::from_f64(3.0).unwrap(),
         F::from_f64(-1.0).unwrap() / F::from_f64(3.0).unwrap(),
     ];
-    
+
     // Eigendecomposition constants for implementing the implicit method
     // These help solve the implicit equations more efficiently
-    let mu_real = F::from_f64(3.0).unwrap() + 
-                 F::from_f64(3.0_f64.powf(2.0/3.0)).unwrap() - 
-                 F::from_f64(3.0_f64.powf(1.0/3.0)).unwrap();
-    
+    let mu_real = F::from_f64(3.0).unwrap() + F::from_f64(3.0_f64.powf(2.0 / 3.0)).unwrap()
+        - F::from_f64(3.0_f64.powf(1.0 / 3.0)).unwrap();
+
     // T and TI matrices are used for the eigendecomposition of the A matrix in Butcher tableau
     // T is the matrix of eigenvectors and TI is its inverse
     // This improves the computational efficiency of the method
@@ -1989,32 +2017,32 @@ where
         F::from_f64(0.32768282076106237).unwrap(),
         F::from_f64(0.523_376_445_499_449_5).unwrap(),
     ];
-    
+
     // Interpolation coefficients for dense output - not used in this simplified implementation
     // but kept for reference
     let _p = [
         [
-            F::from_f64(13.0/3.0).unwrap() + F::from_f64(7.0/3.0).unwrap() * s6,
-            F::from_f64(-23.0/3.0).unwrap() - F::from_f64(22.0/3.0).unwrap() * s6,
-            F::from_f64(10.0/3.0).unwrap() + F::from_f64(5.0).unwrap() * s6,
+            F::from_f64(13.0 / 3.0).unwrap() + F::from_f64(7.0 / 3.0).unwrap() * s6,
+            F::from_f64(-23.0 / 3.0).unwrap() - F::from_f64(22.0 / 3.0).unwrap() * s6,
+            F::from_f64(10.0 / 3.0).unwrap() + F::from_f64(5.0).unwrap() * s6,
         ],
         [
-            F::from_f64(13.0/3.0).unwrap() - F::from_f64(7.0/3.0).unwrap() * s6,
-            F::from_f64(-23.0/3.0).unwrap() + F::from_f64(22.0/3.0).unwrap() * s6,
-            F::from_f64(10.0/3.0).unwrap() - F::from_f64(5.0).unwrap() * s6,
+            F::from_f64(13.0 / 3.0).unwrap() - F::from_f64(7.0 / 3.0).unwrap() * s6,
+            F::from_f64(-23.0 / 3.0).unwrap() + F::from_f64(22.0 / 3.0).unwrap() * s6,
+            F::from_f64(10.0 / 3.0).unwrap() - F::from_f64(5.0).unwrap() * s6,
         ],
         [
-            F::from_f64(1.0/3.0).unwrap(),
-            F::from_f64(-8.0/3.0).unwrap(),
-            F::from_f64(10.0/3.0).unwrap(),
+            F::from_f64(1.0 / 3.0).unwrap(),
+            F::from_f64(-8.0 / 3.0).unwrap(),
+            F::from_f64(10.0 / 3.0).unwrap(),
         ],
     ];
-    
+
     // Constants for the Newton iteration
     let newton_maxiter = 12; // Maximum number of Newton iterations (increased for stiff problems)
     let min_factor = F::from_f64(0.2).unwrap(); // Minimum step size reduction factor
     let max_factor = F::from_f64(10.0).unwrap(); // Maximum step size increase factor
-    
+
     // Determine initial step size if not provided
     let h0 = opts.h0.unwrap_or_else(|| {
         // For Radau methods, using a conservative initial step
@@ -2022,27 +2050,27 @@ where
         let span = t_span[1] - t_span[0];
         span / F::from_usize(5).unwrap()
     });
-    
+
     // Determine minimum and maximum step sizes
     let min_step = opts.min_step.unwrap_or_else(|| {
         let span = t_span[1] - t_span[0];
         // For implicit methods like Radau, setting min_step too small can cause issues
         span * F::from_f64(1e-8).unwrap() // Minimal step size increased for stability
     });
-    
+
     let max_step = opts.max_step.unwrap_or_else(|| {
         t_span[1] - t_span[0] // Maximum step can be the whole interval
     });
-    
+
     // Newton iteration tolerance
     let newton_tol = F::from_f64(0.03).unwrap().min(opts.rtol.sqrt());
-    
+
     // Initialize
     let [t_start, t_end] = t_span;
     let mut t = t_start;
     let mut y = y0.clone();
     let mut h = h0;
-    
+
     let mut t_values = vec![t];
     let mut y_values = vec![y.clone()];
     let mut step_count = 0;
@@ -2052,32 +2080,32 @@ where
     let mut _jacobian_evals = 0;
     let mut _lu_decompositions = 0;
     let mut newton_iters_total = 0;
-    
+
     let n_dim = y0.len();
-    
+
     // Initial evaluation
     let mut f_eval = f(t, y.view());
     func_evals += 1;
-    
+
     // For Radau method, we store solution stages in Z
     let mut z = Array2::<F>::zeros((3, n_dim));
-    
+
     // Error estimation variables
     let mut h_abs_old = None;
     let mut error_norm_old = None;
-    
+
     // Simplified Jacobian matrix (we'll compute this numerically)
     let mut jacobian = Array2::<F>::zeros((n_dim, n_dim));
     let mut current_jac = false;
-    
+
     while t < t_end && step_count < opts.max_steps {
         step_count += 1;
-        
+
         // Adjust step size for the last step if needed
         if t + h > t_end {
             h = t_end - t;
         }
-        
+
         // Limit step size to max_step
         if h > max_step {
             h = max_step;
@@ -2086,62 +2114,62 @@ where
                 "Step size became too small".to_string(),
             ));
         }
-        
+
         // In Radau method, we need to solve a nonlinear system for each step
         // This involves Newton iteration to find the solution stages
-        
+
         let mut step_accepted = false;
         let mut rejected = false;
-        
+
         // Continue until we get an acceptable step
         // Add a maximum number of attempts to prevent infinite loops
         let mut attempts = 0;
         let max_attempts = 20; // Prevent infinite loops
-        
+
         while !step_accepted && attempts < max_attempts {
             attempts += 1;
             // Check if step size is too small
             if h < min_step {
-                return Err(IntegrateError::ValueError(
-                    format!("Step size too small in Radau method: step_count={}",
-                            step_count),
-                ));
+                return Err(IntegrateError::ValueError(format!(
+                    "Step size too small in Radau method: step_count={}",
+                    step_count
+                )));
             }
-            
+
             let t_new = t + h;
-            
+
             // If the current Jacobian is not up to date, or if we don't have one yet,
             // compute it numerically
             if !current_jac {
                 // Compute Jacobian matrix using finite differences
                 let eps = F::from_f64(1e-8).unwrap(); // Finite difference step
-                
+
                 // Numerical Jacobian calculation
                 for i in 0..n_dim {
                     let mut y_perturbed = y.clone();
                     y_perturbed[i] += eps;
-                    
+
                     let f_perturbed = f(t, y_perturbed.view());
                     func_evals += 1;
-                    
+
                     for j in 0..n_dim {
                         // Approximate df_j/dy_i
                         jacobian[[j, i]] = (f_perturbed[j] - f_eval[j]) / eps;
                     }
                 }
-                
+
                 _jacobian_evals += 1;
                 current_jac = true;
             }
-            
+
             // Prepare matrices for solving the implicit system
             // We need to form (I - h*M_real*J)^(-1) for real part
             // where M_real is the eigenvalue in the Radau method
-            
+
             // Form the system matrix: I - h*M_real*J
             let m_real = mu_real / h;
             let mut system_matrix = Array2::<F>::zeros((n_dim, n_dim));
-            
+
             for i in 0..n_dim {
                 for j in 0..n_dim {
                     if i == j {
@@ -2151,26 +2179,26 @@ where
                     }
                 }
             }
-            
+
             // LU decomposition of system matrix
             // We'll perform a simplified Gaussian elimination
-            
+
             // Copy the matrix for manipulation
             let mut lu = system_matrix.clone();
             let mut pivot = vec![0; n_dim];
-            
+
             // Find pivot elements for LU decomposition
             for i in 0..n_dim {
                 pivot[i] = i;
                 let mut max_val = lu[[i, i]].abs();
-                
-                for j in i+1..n_dim {
+
+                for j in i + 1..n_dim {
                     if lu[[j, i]].abs() > max_val {
                         max_val = lu[[j, i]].abs();
                         pivot[i] = j;
                     }
                 }
-                
+
                 if pivot[i] != i {
                     // Swap rows
                     for j in 0..n_dim {
@@ -2179,19 +2207,19 @@ where
                         lu[[pivot[i], j]] = temp;
                     }
                 }
-                
+
                 // Eliminate below pivot
-                for j in i+1..n_dim {
+                for j in i + 1..n_dim {
                     lu[[j, i]] = lu[[j, i]] / lu[[i, i]];
-                    
-                    for k in i+1..n_dim {
+
+                    for k in i + 1..n_dim {
                         lu[[j, k]] = lu[[j, k]] - lu[[j, i]] * lu[[i, k]];
                     }
                 }
             }
-            
+
             _lu_decompositions += 1;
-            
+
             // LU solve function for our internal use
             let solve_lu = |lu: &Array2<F>, pivot: &[usize], b: &mut Array1<F>| {
                 // Forward substitution (with permutation)
@@ -2201,35 +2229,35 @@ where
                         b[i] = b[pivot[i]];
                         b[pivot[i]] = temp;
                     }
-                    
-                    for j in i+1..n_dim {
+
+                    for j in i + 1..n_dim {
                         b[j] = b[j] - lu[[j, i]] * b[i];
                     }
                 }
-                
+
                 // Backward substitution
                 for i in (0..n_dim).rev() {
-                    for j in i+1..n_dim {
+                    for j in i + 1..n_dim {
                         b[i] = b[i] - lu[[i, j]] * b[j];
                     }
                     b[i] /= lu[[i, i]];
                 }
             };
-            
+
             // Initialize Z with zeros (solution stages)
             for i in 0..3 {
                 for j in 0..n_dim {
                     z[[i, j]] = F::zero();
                 }
             }
-            
+
             // Prepare temporary arrays for the Newton iteration
             let mut f_stages = Array2::<F>::zeros((3, n_dim));
             let mut converged = false;
             let mut iter_count = 0;
             let mut rate = None;
             let mut dw_norm_old = None;
-            
+
             // Newton iteration loop
             while iter_count < newton_maxiter {
                 // Evaluate function at each stage
@@ -2239,13 +2267,13 @@ where
                     for j in 0..n_dim {
                         y_stage[j] += z[[i, j]];
                     }
-                    
+
                     // Evaluate function at this stage
                     let t_stage = t + c[i] * h;
                     f_stages.row_mut(i).assign(&f(t_stage, y_stage.view()));
                     func_evals += 1;
                 }
-                
+
                 // Check for non-finite values
                 let mut all_finite = true;
                 for i in 0..3 {
@@ -2259,11 +2287,11 @@ where
                         break;
                     }
                 }
-                
+
                 if !all_finite {
                     break;
                 }
-                
+
                 // Compute real part of residual
                 let mut f_real = Array1::<F>::zeros(n_dim);
                 for j in 0..n_dim {
@@ -2271,7 +2299,7 @@ where
                         f_real[j] += f_stages[[i, j]] * ti_real[i];
                     }
                 }
-                
+
                 // Compute weighted sum W
                 let mut w = Array1::<F>::zeros(n_dim);
                 for j in 0..n_dim {
@@ -2279,22 +2307,22 @@ where
                         w[j] += z[[i, j]] * ti_real[i];
                     }
                 }
-                
+
                 // Finish computing residual
                 for j in 0..n_dim {
                     f_real[j] -= m_real * w[j];
                 }
-                
+
                 // Solve the linear system for the Newton step
                 let mut dw_real = f_real.clone();
                 solve_lu(&lu, &pivot, &mut dw_real);
-                
+
                 // Compute W update
                 let mut dw = Array1::<F>::zeros(n_dim);
                 for j in 0..n_dim {
                     dw[j] = dw_real[j];
                 }
-                
+
                 // Compute norm of the update scaled by tolerances
                 let mut dw_norm = F::zero();
                 for j in 0..n_dim {
@@ -2302,28 +2330,32 @@ where
                     let dw_scaled = dw[j] / scale_j;
                     dw_norm = dw_norm.max(dw_scaled.abs());
                 }
-                
+
                 // Calculate convergence rate if possible
                 if let Some(old_norm) = dw_norm_old {
                     rate = Some(dw_norm / old_norm);
                 }
-                
+
                 // Check early termination conditions
                 if let Some(r) = rate {
                     // If the convergence rate is too slow or diverging,
                     // break early to try with updated Jacobian or smaller step
-                    if r >= F::from_f64(0.9).unwrap() || 
-                       (r > F::from_f64(0.3).unwrap() && 
-                        r.powf(F::from_usize(newton_maxiter - iter_count).unwrap()) / (F::one() - r) * dw_norm > newton_tol) {
+                    if r >= F::from_f64(0.9).unwrap()
+                        || (r > F::from_f64(0.3).unwrap()
+                            && r.powf(F::from_usize(newton_maxiter - iter_count).unwrap())
+                                / (F::one() - r)
+                                * dw_norm
+                                > newton_tol)
+                    {
                         break;
                     }
                 }
-                
+
                 // Update W and Z
                 for j in 0..n_dim {
                     w[j] += dw[j];
                 }
-                
+
                 // Update Z stages based on new W
                 // Z = T * W where T would be fully implemented here
                 // For now, we'll use a simplified approach
@@ -2338,28 +2370,30 @@ where
                         }
                     }
                 }
-                
+
                 // Check for convergence
-                if dw_norm <= F::from_f64(1e-10).unwrap() || 
-                   (dw_norm < newton_tol * F::from_f64(0.1).unwrap()) || 
-                   (rate.is_some() && rate.unwrap() < F::from_f64(0.9).unwrap() && 
-                    rate.unwrap() / (F::one() - rate.unwrap()) * dw_norm < newton_tol) {
+                if dw_norm <= F::from_f64(1e-10).unwrap()
+                    || (dw_norm < newton_tol * F::from_f64(0.1).unwrap())
+                    || (rate.is_some()
+                        && rate.unwrap() < F::from_f64(0.9).unwrap()
+                        && rate.unwrap() / (F::one() - rate.unwrap()) * dw_norm < newton_tol)
+                {
                     converged = true;
                     break;
                 }
-                
+
                 dw_norm_old = Some(dw_norm);
                 iter_count += 1;
             }
-            
+
             newton_iters_total += iter_count;
-            
+
             // If Newton iteration did not converge and we're using current Jacobian
             if !converged {
                 if current_jac {
                     // We already have fresh Jacobian - reduce step size more aggressively
                     h = h * F::from_f64(0.25).unwrap();
-                    
+
                     // Ensure step size is not too small
                     if h < min_step {
                         h = min_step;
@@ -2370,13 +2404,13 @@ where
                 }
                 continue;
             }
-            
+
             // Newton iteration converged, compute new state
             let mut y_new = y.clone();
             for j in 0..n_dim {
                 y_new[j] += z[[2, j]]; // Last stage gives the solution
             }
-            
+
             // Compute error estimate
             let mut ze = Array1::<F>::zeros(n_dim);
             for i in 0..3 {
@@ -2384,12 +2418,12 @@ where
                     ze[j] += z[[i, j]] * e[i];
                 }
             }
-            
+
             let mut error = Array1::<F>::zeros(n_dim);
             for j in 0..n_dim {
                 error[j] = ze[j] / h;
             }
-            
+
             // Scale error by tolerances
             let mut error_norm = F::zero();
             for j in 0..n_dim {
@@ -2397,71 +2431,70 @@ where
                 let err_j = error[j] / scale;
                 error_norm = error_norm.max(err_j.abs());
             }
-            
+
             // Apply safety factor for convergence
             let iter_count_f = F::from_usize(iter_count).unwrap();
-            let safety = F::from_f64(0.9).unwrap() * 
-                (F::from_f64(2.0 * 6.0 + 1.0).unwrap() / 
-                (F::from_f64(2.0 * 6.0).unwrap() + iter_count_f));
-            
+            let safety = F::from_f64(0.9).unwrap()
+                * (F::from_f64(2.0 * 6.0 + 1.0).unwrap()
+                    / (F::from_f64(2.0 * 6.0).unwrap() + iter_count_f));
+
             // If step was previously rejected, compute error differently
             if rejected && error_norm > F::one() {
                 // This would involve recomputing with a different formula
                 // But we'll skip this for now to simplify the implementation
             }
-            
+
             // Determine if step is acceptable
             if error_norm <= F::one() {
                 // Calculate next step size
                 let factor = predict_factor(
-                    h, 
-                    h_abs_old, 
-                    error_norm, 
-                    error_norm_old, 
+                    h,
+                    h_abs_old,
+                    error_norm,
+                    error_norm_old,
                     safety,
                     min_factor,
-                    max_factor
+                    max_factor,
                 );
-                
+
                 // Accept step
                 t = t_new;
                 y = y_new;
-                
+
                 // Store results
                 t_values.push(t);
                 y_values.push(y.clone());
-                
+
                 accepted_steps += 1;
                 step_accepted = true;
-                
+
                 // Update values for next iteration
                 h_abs_old = Some(h);
                 error_norm_old = Some(error_norm);
-                
+
                 // Update step size for next iteration
                 h = h * factor;
-                
+
                 // Clear Jacobian if factor is large enough
                 if factor >= F::from_f64(1.2).unwrap() {
                     current_jac = false;
                 }
-                
+
                 // Update function evaluation
                 f_eval = f(t, y.view());
                 func_evals += 1;
-                
             } else {
                 // Reject step and try with smaller step size
                 let factor = predict_factor(
-                    h, 
-                    h_abs_old, 
-                    error_norm, 
-                    error_norm_old, 
+                    h,
+                    h_abs_old,
+                    error_norm,
+                    error_norm_old,
                     safety,
                     min_factor,
-                    max_factor
+                    max_factor,
                 );
-                
+
                 // When rejecting a step, be more conservative with the step reduction
                 // Use a larger step reduction than the formula suggests if the error is very large
                 let reduced_factor = if error_norm > F::from_f64(10.0).unwrap() {
@@ -2471,13 +2504,13 @@ where
                 } else {
                     factor
                 };
-                
+
                 h = h * reduced_factor.max(min_factor);
                 rejected = true;
                 rejected_steps += 1;
             }
         }
-        
+
         // Check if we reached maximum attempts
         if attempts >= max_attempts {
             // We couldn't find an acceptable step size - try a completely different approach
@@ -2490,7 +2523,7 @@ where
             h = h.max(min_step).min(max_step);
         }
     }
-    
+
     let success = t >= t_end;
     let message = if !success {
         Some(format!(
@@ -2500,7 +2533,7 @@ where
     } else {
         Some(format!("Newton iterations: {}", newton_iters_total))
     };
-    
+
     Ok(ODEResult {
         t: t_values,
         y: y_values,
@@ -2517,26 +2550,31 @@ where
 
 /// Predict step size factor for adaptive methods
 fn predict_factor<F: Float + FromPrimitive>(
-    h_abs: F, 
-    h_abs_old: Option<F>, 
-    error_norm: F, 
+    h_abs: F,
+    h_abs_old: Option<F>,
+    error_norm: F,
     error_norm_old: Option<F>,
     safety: F,
     min_factor: F,
-    max_factor: F
+    max_factor: F,
 ) -> F {
     // If we don't have previous step information or error is zero, use simple formula
     if error_norm_old.is_none() || h_abs_old.is_none() || error_norm == F::zero() {
-        return safety * error_norm.powf(-F::from_f64(0.25).unwrap()).min(max_factor).max(min_factor);
+        return safety
+            * error_norm
+                .powf(-F::from_f64(0.25).unwrap())
+                .min(max_factor)
+                .max(min_factor);
     }
-    
+
     // Use more sophisticated controller based on two steps
     let h_abs_old = h_abs_old.unwrap();
     let error_norm_old = error_norm_old.unwrap();
-    
-    let multiplier = h_abs / h_abs_old * (error_norm_old / error_norm).powf(F::from_f64(0.25).unwrap());
+
+    let multiplier =
+        h_abs / h_abs_old * (error_norm_old / error_norm).powf(F::from_f64(0.25).unwrap());
     let factor = multiplier.min(F::one()) * error_norm.powf(-F::from_f64(0.25).unwrap());
-    
+
     factor.min(max_factor).max(min_factor) * safety
 }
 
@@ -2600,7 +2638,17 @@ enum StepResult<F: Float> {
     ShouldSwitch,
 }
 
-impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign + std::ops::MulAssign> LsodaState<F> {
+impl<
+        F: Float
+            + FromPrimitive
+            + Debug
+            + ScalarOperand
+            + std::ops::AddAssign
+            + std::ops::SubAssign
+            + std::ops::DivAssign
+            + std::ops::MulAssign,
+    > LsodaState<F>
+{
     /// Create a new LSODA state
     fn new(t: F, y0: Array1<F>, dy0: Array1<F>, h: F) -> Self {
         Self {
@@ -2610,11 +2658,11 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             history: vec![(t, y0, dy0)],
             h,
             method_type: LsodaMethodType::Adams, // Start with non-stiff method
-            order: 1, // Start with first-order method
+            order: 1,                            // Start with first-order method
             jacobian: None,
             stiff_to_nonstiff_switches: 0,
             nonstiff_to_stiff_switches: 0,
-            consecutive_method_steps: 0,  // Initialize to 0
+            consecutive_method_steps: 0, // Initialize to 0
             func_evals: 0,
             steps: 0,
             accepted_steps: 0,
@@ -2623,7 +2671,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             last_error_norm: None,
         }
     }
-    
+
     /// Take a step using Adams method (predictor-corrector) for non-stiff regions
     fn adams_step<Func>(&mut self, f: &Func, opts: &ODEOptions<F>) -> StepResult<F>
     where
@@ -2661,7 +2709,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             ],
             // Higher orders...
         ];
-        
+
         // Adams-Moulton (corrector) coefficients up to order 12
         let am_coeffs = [
             // Order 1 (Backward Euler)
@@ -2694,7 +2742,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             ],
             // Higher orders...
         ];
-        
+
         // Error coefficients (difference between predictor and corrector)
         let error_coeffs = [
             F::from_f64(1.0 / 2.0).unwrap(),
@@ -2703,25 +2751,25 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             F::from_f64(19.0 / 720.0).unwrap(),
             F::from_f64(3.0 / 160.0).unwrap(),
         ];
-        
+
         // Limit order based on available history
         let max_possible_order = self.history.len().min(ab_coeffs.len());
         let current_order = self.order.min(max_possible_order);
-        
+
         // Get the correct coefficient sets for current order
         let ab_coeff = &ab_coeffs[current_order - 1];
         let am_coeff = &am_coeffs[current_order - 1];
-        
+
         // Step 1: Predictor step (Adams-Bashforth)
         let mut y_pred = self.y.clone();
-        
+
         // Collect past derivatives
         let mut past_derivs = Vec::with_capacity(current_order);
         for i in 0..current_order {
             let idx = self.history.len() - 1 - i;
             past_derivs.push(&self.history[idx].2);
         }
-        
+
         // Apply Adams-Bashforth predictor formula
         for j in 0..self.y.len() {
             let mut dy_pred = F::zero();
@@ -2730,15 +2778,15 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             }
             y_pred[j] += self.h * dy_pred;
         }
-        
+
         // Evaluate function at predicted point
         let t_new = self.t + self.h;
         let dy_pred = f(t_new, y_pred.view());
         self.func_evals += 1;
-        
+
         // Step 2: Corrector step (Adams-Moulton)
         let mut y_corr = self.y.clone();
-        
+
         // Prepare derivatives including predicted derivative
         let mut all_derivs = Vec::with_capacity(current_order);
         all_derivs.push(&dy_pred);
@@ -2746,7 +2794,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             let idx = self.history.len() - 1 - i;
             all_derivs.push(&self.history[idx].2);
         }
-        
+
         // Apply Adams-Moulton corrector formula
         for j in 0..self.y.len() {
             let mut dy_corr = F::zero();
@@ -2755,7 +2803,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             }
             y_corr[j] += self.h * dy_corr;
         }
-        
+
         // Step 3: Error estimation with additional safeguards
         let error_coeff = error_coeffs[current_order - 1];
         let mut error_norm = F::zero();
@@ -2763,25 +2811,25 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             // Apply a bias toward accepting steps when close to tolerance
             let error = (y_corr[j] - y_pred[j]).abs() * error_coeff;
             let scale = opts.atol + opts.rtol * self.y[j].abs().max(y_corr[j].abs());
-            
+
             // Clamp extremely small scales to avoid division by near-zero
             let safe_scale = scale.max(F::from_f64(1e-10).unwrap());
             let norm_term = error / safe_scale;
-            
+
             // Avoid accumulating extremely large errors from single components
             // This prevents a single outlier from causing step size collapse
             let clamped_norm = norm_term.min(F::from_f64(100.0).unwrap());
             error_norm = error_norm.max(clamped_norm);
         }
-        
+
         // Step 4: More robust step size control
         let safety = F::from_f64(0.9).unwrap(); // Safety factor to reduce step size
-        
+
         // Use more conservative bounds for step size changes
         // This prevents extreme step size reductions that can cause problems
         let min_factor = F::from_f64(0.25).unwrap(); // Never reduce by more than 4x
-        let max_factor = F::from_f64(4.0).unwrap();  // Never increase by more than 4x
-        
+        let max_factor = F::from_f64(4.0).unwrap(); // Never increase by more than 4x
+
         // Use a more conservative formula for very large errors
         let power = F::one() / F::from_usize(current_order + 1).unwrap();
         let factor = if error_norm > F::from_f64(10.0).unwrap() {
@@ -2790,35 +2838,39 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             min_factor
         } else {
             // Normal PI controller formula for step size
-            safety * (F::one() / error_norm).powf(power).max(min_factor).min(max_factor)
+            safety
+                * (F::one() / error_norm)
+                    .powf(power)
+                    .max(min_factor)
+                    .min(max_factor)
         };
-        
+
         // Step 5: Accept or reject step
         if error_norm <= F::one() {
             // Accept step, return corrector value
             self.last_h = Some(self.h);
             self.last_error_norm = Some(error_norm);
             self.h *= factor;
-            
+
             // If we're making good progress, consider increasing order
             if current_order < ab_coeffs.len() - 1 && error_norm < F::from_f64(0.5).unwrap() {
                 self.order = current_order + 1;
             } else if error_norm > F::from_f64(0.75).unwrap() && current_order > 1 {
                 self.order = current_order - 1;
             }
-            
+
             return StepResult::Accepted(y_corr);
         } else {
             // Reject step
             self.rejected_steps += 1;
-            
+
             // Calculate new step size
             let new_h = self.h * factor.max(min_factor);
-            
+
             // Check if step size is getting too small for this method
             let t_scale = self.t.abs().max(F::one());
             let approximate_min_step = t_scale * F::from_f64(1e-6).unwrap();
-            
+
             if new_h < approximate_min_step {
                 // Print diagnostic information - convert to f64 for printing
                 eprintln!(
@@ -2831,23 +2883,23 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                     self.rejected_steps, 
                     current_order
                 );
-                
+
                 // Step size getting very small - this problem might be stiff
                 // Better to switch methods than continue reducing step size
                 return StepResult::ShouldSwitch;
             }
-            
+
             self.h = new_h;
-            
+
             // If we've rejected too many steps, suggest switching methods
             if self.rejected_steps > 5 {
                 return StepResult::ShouldSwitch;
             }
-            
+
             return StepResult::Rejected;
         }
     }
-    
+
     /// Take a step using BDF method for stiff regions
     fn bdf_step<Func>(&mut self, f: &Func, opts: &ODEOptions<F>) -> StepResult<F>
     where
@@ -2888,7 +2940,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                 F::from_f64(-60.0 / 137.0).unwrap(),
             ],
         ];
-        
+
         // Error estimation coefficients for each order
         let error_coeffs = [
             F::from_f64(0.5).unwrap(),
@@ -2897,17 +2949,17 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             F::from_f64(0.125).unwrap(),
             F::from_f64(0.1).unwrap(),
         ];
-        
+
         // Limit order based on available history
         let max_possible_order = self.history.len().min(bdf_coeffs.len());
         let current_order = self.order.min(max_possible_order);
-        
+
         // Get coefficients for current order
         let bdf_coeff = &bdf_coeffs[current_order - 1];
-        
+
         // 1. Predict initial value using extrapolation from history
         let mut y_pred = Array1::<F>::zeros(self.y.len());
-        
+
         // Extrapolation based on history
         for i in 0..current_order {
             if i < self.history.len() {
@@ -2917,35 +2969,34 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                 }
             }
         }
-        
+
         // 2. Solve the implicit equation using Newton iteration with better parameters
-        let newton_maxiter = 10;  // Allow more iterations to achieve convergence
-        
+        let newton_maxiter = 10; // Allow more iterations to achieve convergence
+
         // Use a more reasonable tolerance for Newton iteration
         // This allows lower accuracy initially but requires more convergence later
-        let newton_tol = F::from_f64(0.01).unwrap() * 
-                         (opts.rtol + opts.atol); // Less stringent tolerance
-        
+        let newton_tol = F::from_f64(0.01).unwrap() * (opts.rtol + opts.atol); // Less stringent tolerance
+
         let mut converged = false;
         let mut iter_count = 0;
-        
+
         // Use a better initial guess - we average the predicted value with the
         // previous solution to get a more stable starting point
         let mut y_new = y_pred.clone();
         for j in 0..self.y.len() {
             y_new[j] = F::from_f64(0.5).unwrap() * (y_new[j] + self.y[j]);
         }
-        
+
         // Newton iteration loop
         while iter_count < newton_maxiter && !converged {
             // Evaluate function at current approximation
             let t_new = self.t + self.h;
             let dy_new = f(t_new, y_new.view());
             self.func_evals += 1;
-            
+
             // Compute residual of the implicit equation
             let mut residual = y_new.clone();
-            
+
             // Add history contributions
             for i in 0..current_order {
                 if i < self.history.len() {
@@ -2955,31 +3006,31 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                     }
                 }
             }
-            
+
             // Subtract scaled derivative term
             let c1 = bdf_coeff[0];
             for j in 0..self.y.len() {
                 residual[j] -= self.h * c1 * dy_new[j];
             }
-            
+
             // Compute Jacobian if needed (simplified, would need proper implementation)
             // For now, we'll use an approximate Jacobian
             if self.jacobian.is_none() || iter_count == 0 {
                 // Numerical Jacobian approximation
                 let eps = F::from_f64(1e-8).unwrap();
                 let mut jac_data = Vec::new();
-                
+
                 for i in 0..self.y.len() {
                     let mut y_perturbed = y_new.clone();
                     y_perturbed[i] += eps;
-                    
+
                     let dy_perturbed = f(t_new, y_perturbed.view());
                     self.func_evals += 1;
-                    
+
                     for j in 0..self.y.len() {
                         let deriv = (dy_perturbed[j] - dy_new[j]) / eps;
                         jac_data.push(-self.h * c1 * deriv);
-                        
+
                         // Add identity matrix component
                         if i == j {
                             let last_idx = jac_data.len() - 1;
@@ -2987,28 +3038,31 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                         }
                     }
                 }
-                
+
                 // Store flattened Jacobian
                 self.jacobian = Some(Array1::from(jac_data));
             }
-            
+
             // Solve linear system J*dx = residual with improved algorithm
             // Better solver with enhanced stability and accuracy
             let mut dx = residual.clone();
-            
+
             if let Some(jac) = &self.jacobian {
                 let n = self.y.len();
-                
+
                 // Only display warning for slow convergence (less frequently to avoid console spam)
                 if iter_count > 4 && iter_count % 2 == 0 {
-                    eprintln!("BDF Newton iteration struggling: t={:.4}, iter={}", 
-                              self.t.to_f64().unwrap_or(0.0), iter_count);
+                    eprintln!(
+                        "BDF Newton iteration struggling: t={:.4}, iter={}",
+                        self.t.to_f64().unwrap_or(0.0),
+                        iter_count
+                    );
                 }
-                
+
                 if n == 1 {
                     // For 1D problems, use direct division with safety checks
                     let diag_val = jac[0];
-                    
+
                     // Safeguard against near-zero diagonal values
                     if diag_val.abs() > F::from_f64(1e-12).unwrap() {
                         dx[0] /= diag_val;
@@ -3016,7 +3070,11 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                         // Use a safe value for very small entries
                         let safe_val = F::from_f64(1e-8).unwrap().max(diag_val.abs());
                         // Keep the sign of the original diagonal
-                        let safe_diag = if diag_val < F::zero() { -safe_val } else { safe_val };
+                        let safe_diag = if diag_val < F::zero() {
+                            -safe_val
+                        } else {
+                            safe_val
+                        };
                         dx[0] /= safe_diag;
                     }
                 } else if n == 2 {
@@ -3025,10 +3083,10 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                     let j01 = jac[1];
                     let j10 = jac[2];
                     let j11 = jac[3];
-                    
+
                     // Calculate the determinant to check if system is well-conditioned
                     let det = j00 * j11 - j01 * j10;
-                    
+
                     // If determinant is reasonable, solve full 2x2 system
                     if det.abs() > F::from_f64(1e-10).unwrap() {
                         // 2x2 linear system solution
@@ -3041,7 +3099,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                         for i in 0..n {
                             let jac_diag_idx = i * n + i;
                             let diag_val = jac[jac_diag_idx];
-                            
+
                             // Ensure diagonal is not too close to zero
                             if diag_val.abs() > F::from_f64(1e-12).unwrap() {
                                 dx[i] /= diag_val;
@@ -3058,10 +3116,10 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                     // This is a basic approximation, but better than the original
                     for i in 0..n {
                         let jac_diag_idx = i * n + i;
-                        
+
                         if jac_diag_idx < jac.len() {
                             let diag_val = jac[jac_diag_idx];
-                            
+
                             // Ensure diagonal is not too close to zero
                             if diag_val.abs() > F::from_f64(1e-12).unwrap() {
                                 dx[i] /= diag_val;
@@ -3071,18 +3129,23 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                                     eprintln!("BDF linear solver warning: near-zero diagonal at t={:.4}, i={}", 
                                             self.t.to_f64().unwrap_or(0.0), i);
                                 }
-                                
+
                                 // Use a minimum value to prevent division by very small numbers
                                 let safe_val = F::from_f64(1e-8).unwrap();
                                 // Preserve sign
-                                dx[i] /= safe_val * if diag_val == F::zero() { F::one() } else { diag_val.signum() };
+                                dx[i] /= safe_val
+                                    * if diag_val == F::zero() {
+                                        F::one()
+                                    } else {
+                                        diag_val.signum()
+                                    };
                             }
                         } else {
                             dx[i] /= F::one();
                         }
                     }
                 }
-                
+
                 // Apply damping to improve convergence (stronger damping for later iterations)
                 let damping = if iter_count > 5 {
                     // For struggling iterations, use stronger damping
@@ -3094,7 +3157,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                     // Minimal damping for early iterations
                     F::from_f64(0.9).unwrap()
                 };
-                
+
                 // Apply damping
                 if iter_count > 0 {
                     for i in 0..n {
@@ -3107,38 +3170,40 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                 for i in 0..dx.len() {
                     dx[i] = -dx[i] * damping;
                 }
-                
+
                 // Only warn once
                 if iter_count == 0 {
-                    eprintln!("BDF warning: No Jacobian available at t={:.4}", 
-                            self.t.to_f64().unwrap_or(0.0));
+                    eprintln!(
+                        "BDF warning: No Jacobian available at t={:.4}",
+                        self.t.to_f64().unwrap_or(0.0)
+                    );
                 }
             }
-            
+
             // Update solution
             for j in 0..self.y.len() {
                 y_new[j] -= dx[j];
             }
-            
+
             // Check convergence with improved criteria
             let mut dx_norm = F::zero();
             let mut max_rel_change = F::zero();
-            
+
             for j in 0..self.y.len() {
                 // Scale based on both tolerance and current solution magnitude
                 let scale = opts.atol + opts.rtol * y_new[j].abs();
                 let scaled_dx = dx[j].abs() / scale;
-                
+
                 // Keep track of maximum scaled change
                 dx_norm = dx_norm.max(scaled_dx);
-                
+
                 // Also track relative change for components that are not near zero
                 if y_new[j].abs() > opts.atol * F::from_f64(10.0).unwrap() {
                     let rel_change = dx[j].abs() / y_new[j].abs();
                     max_rel_change = max_rel_change.max(rel_change);
                 }
             }
-            
+
             // More robust convergence criteria - require EITHER scaled norm OR relative change to be small
             // Use adaptive tolerance that gets tighter in later iterations
             let iteration_factor = if iter_count > 5 {
@@ -3147,32 +3212,32 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
             } else {
                 F::one()
             };
-            
+
             let dx_converged = dx_norm < newton_tol * iteration_factor;
             let rel_converged = max_rel_change < F::from_f64(0.01).unwrap() * iteration_factor;
-            
+
             if dx_converged || rel_converged {
                 converged = true;
             }
-            
+
             iter_count += 1;
         }
-        
+
         // Check if Newton iteration converged
         if !converged {
             // Newton iteration failed
             self.rejected_steps += 1;
-            
+
             // Reduce step size but ensure we don't go below min_step
             // Use a more conservative factor for stiff problems
             let reduction_factor = F::from_f64(0.5).unwrap();
             let new_h = self.h * reduction_factor;
-            
+
             // Instead of continuing to reduce, check if we're near what would be min_step
             // Assume min_step is roughly 1e-6 * (t_end - t_start)
             let t_scale = self.t.abs().max(F::one());
             let approximate_min_step = t_scale * F::from_f64(1e-6).unwrap();
-            
+
             if new_h < approximate_min_step {
                 // Print diagnostic information for Newton convergence failure - convert to f64
                 eprintln!(
@@ -3184,36 +3249,36 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                     self.rejected_steps, 
                     iter_count
                 );
-                
+
                 // We're getting too small, try switching methods instead
                 // of reducing further
                 return StepResult::ShouldSwitch;
             }
-            
+
             self.h = new_h;
-            
+
             // If we've rejected too many steps, suggest switching methods
             if self.rejected_steps > 3 {
                 return StepResult::ShouldSwitch;
             }
-            
+
             return StepResult::Rejected;
         }
-        
+
         // Newton iteration converged, estimate error
         // We don't actually use this evaluation but it helps with accuracy tracking
         let _dy_new = f(self.t + self.h, y_new.view());
         self.func_evals += 1;
-        
+
         // Enhanced error estimation with more robust handling
         // Use a combination of predicted-corrected difference and truncation error
         let mut error_norm = F::zero();
         let error_coeff = error_coeffs[current_order - 1];
-        
+
         // For multi-component systems, estimate relative importance of each component
         let n = self.y.len();
         let has_multiple_components = n > 1;
-        
+
         // Simple method to detect if certain components should be weighted more
         let mut max_component = F::zero();
         if has_multiple_components {
@@ -3221,27 +3286,28 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                 max_component = max_component.max(y_new[j].abs());
             }
         }
-        
+
         for j in 0..n {
             // Calculate error with appropriate scaling
             let error = (y_new[j] - y_pred[j]).abs() * error_coeff;
-            
+
             // Use a blend of absolute tolerance and relative tolerance
             // Based on both current and previous solution values
             let scale = opts.atol + opts.rtol * y_new[j].abs().max(self.y[j].abs());
-            
+
             // Prevent division by very small values
             let safe_scale = scale.max(F::from_f64(1e-10).unwrap());
-            
+
             // Weight components in multi-component systems
             let mut norm_term = error / safe_scale;
-            
+
             // For multi-component systems, consider relative importance
             if has_multiple_components && max_component > F::from_f64(1e-6).unwrap() {
-                let component_weight = (y_new[j].abs() / max_component).max(F::from_f64(0.1).unwrap());
+                let component_weight =
+                    (y_new[j].abs() / max_component).max(F::from_f64(0.1).unwrap());
                 norm_term *= component_weight;
             }
-            
+
             // Prevent a single component from causing step size collapse
             // Use more careful clamping based on error magnitude
             let clamped_norm = if norm_term > F::from_f64(10.0).unwrap() {
@@ -3251,59 +3317,64 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                 // Normal case - no clamping needed
                 norm_term
             };
-            
+
             error_norm = error_norm.max(clamped_norm);
         }
-        
+
         // More robust step size control for BDF method
         let safety = F::from_f64(0.9).unwrap();
-        
+
         // More conservative limits for BDF, which can struggle with stiff problems
         let min_factor = F::from_f64(0.3).unwrap(); // Never reduce by more than ~3x
         let max_factor = F::from_f64(3.0).unwrap(); // More conservative growth
-        
+
         // Use a more conservative formula for large errors
         let order_float = F::from_usize(current_order).unwrap();
         let power = F::one() / (order_float + F::one());
-        
+
         let factor = if error_norm > F::from_f64(10.0).unwrap() {
             // For large errors, limit reduction to prevent step size collapse
             min_factor
         } else if error_norm < F::from_f64(0.01).unwrap() {
             // For very small errors, be more conservative about growth
-            let conservative_factor = safety * (F::one() / error_norm).powf(power * F::from_f64(0.5).unwrap());
+            let conservative_factor =
+                safety * (F::one() / error_norm).powf(power * F::from_f64(0.5).unwrap());
             conservative_factor.max(min_factor).min(max_factor)
         } else {
             // Normal case
-            safety * (F::one() / error_norm).powf(power).max(min_factor).min(max_factor)
+            safety
+                * (F::one() / error_norm)
+                    .powf(power)
+                    .max(min_factor)
+                    .min(max_factor)
         };
-        
+
         // Accept or reject step
         if error_norm <= F::one() {
             // Accept step
             self.last_h = Some(self.h);
             self.last_error_norm = Some(error_norm);
             self.h *= factor;
-            
+
             // Order control
             if current_order < bdf_coeffs.len() - 1 && error_norm < F::from_f64(0.5).unwrap() {
                 self.order = current_order + 1;
             } else if error_norm > F::from_f64(0.75).unwrap() && current_order > 1 {
                 self.order = current_order - 1;
             }
-            
+
             return StepResult::Accepted(y_new);
         } else {
             // Reject step
             self.rejected_steps += 1;
-            
+
             // Calculate new step size
             let new_h = self.h * factor.max(min_factor);
-            
+
             // Check if the step size is getting too small
             let t_scale = self.t.abs().max(F::one());
             let approximate_min_step = t_scale * F::from_f64(1e-6).unwrap();
-            
+
             if new_h < approximate_min_step {
                 // Print diagnostic information for BDF error estimation issues - convert to f64
                 eprintln!(
@@ -3316,7 +3387,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                     self.rejected_steps, 
                     current_order
                 );
-                
+
                 // If even BDF is having trouble with small steps,
                 // try a different approach or give up
                 if self.rejected_steps > 3 {
@@ -3325,18 +3396,18 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
                     return StepResult::ShouldSwitch;
                 }
             }
-            
+
             self.h = new_h;
-            
+
             // If we've rejected too many steps, suggest switching methods
             if self.rejected_steps > 3 {
                 return StepResult::ShouldSwitch;
             }
-            
+
             return StepResult::Rejected;
         }
     }
-    
+
     /// Switch method type
     fn switch_method(&mut self, new_method: LsodaMethodType) {
         if self.method_type == LsodaMethodType::Adams && new_method == LsodaMethodType::Bdf {
@@ -3344,26 +3415,24 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
         } else if self.method_type == LsodaMethodType::Bdf && new_method == LsodaMethodType::Adams {
             self.stiff_to_nonstiff_switches += 1;
         }
-        
+
         // Reset order and potentially step size when switching
         self.order = 1;
         self.h *= F::from_f64(0.5).unwrap(); // Conservative restart
         self.jacobian = None; // Reset Jacobian when switching methods
-        
+
         // Reset consecutive steps counter when switching methods
         self.consecutive_method_steps = 0;
-        
+
         self.method_type = new_method;
     }
-    
+
     /// Generate ODEResult from the state
     fn into_result(self, success: bool, message: Option<String>) -> ODEResult<F> {
         // Extract time points and solution values
-        let (t_values, y_values): (Vec<F>, Vec<Array1<F>>) = self.history
-            .into_iter()
-            .map(|(t, y, _)| (t, y))
-            .unzip();
-        
+        let (t_values, y_values): (Vec<F>, Vec<Array1<F>>) =
+            self.history.into_iter().map(|(t, y, _)| (t, y)).unzip();
+
         ODEResult {
             t: t_values,
             y: y_values,
@@ -3381,7 +3450,7 @@ impl<F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + st
 
 /// Solve ODE using LSODA method
 /// LSODA automatically switches between Adams method (non-stiff) and BDF (stiff)
-/// 
+///
 /// # Note
 /// This implementation is currently experimental and under development.
 /// It may not work reliably for all problems, especially those requiring
@@ -3395,50 +3464,57 @@ fn lsoda_method<F, Func>(
     opts: ODEOptions<F>,
 ) -> IntegrateResult<ODEResult<F>>
 where
-    F: Float + FromPrimitive + Debug + ScalarOperand + std::ops::AddAssign + std::ops::SubAssign + std::ops::DivAssign + std::ops::MulAssign,
+    F: Float
+        + FromPrimitive
+        + Debug
+        + ScalarOperand
+        + std::ops::AddAssign
+        + std::ops::SubAssign
+        + std::ops::DivAssign
+        + std::ops::MulAssign,
     Func: Fn(F, ArrayView1<F>) -> Array1<F>,
 {
     // Note: This is a developing implementation with partial functionality.
     // As it's not yet fully tested and optimized, we'll return a NotImplementedError for now.
     // The following code shows the planned implementation structure:
-    
+
     let [t_start, t_end] = t_span;
-    
+
     // Determine initial step size if not provided
     let h0 = opts.h0.unwrap_or_else(|| {
         // Use a larger initial step for LSODA to avoid early step size issues
         let span = t_end - t_start;
         span * F::from_f64(0.05).unwrap() // Default to 5% of interval (larger than default)
     });
-    
+
     // Ensure initial step is within bounds
     let max_step = opts.max_step.unwrap_or_else(|| t_end - t_start);
     // Use the user's minimum step or a reasonable default if not provided
     let min_step = opts.min_step.unwrap_or_else(|| {
         // Default is 0.01% of span - find balance between too large and too small
-        (t_end - t_start) * F::from_f64(0.0001).unwrap() 
+        (t_end - t_start) * F::from_f64(0.0001).unwrap()
     });
-    
+
     let h = h0.min(max_step).max(min_step);
-    
+
     // Initial evaluation of the function
     let dy0 = f(t_start, y0.view());
-    
+
     // Initialize LSODA state with more robust settings
     let mut state = LsodaState::new(t_start, y0, dy0, h);
-    
+
     // Adaptive step size floor - start with min_step but may increase
     let mut adaptive_min_step = min_step;
-    
+
     // Main integration loop with improved stability features
     while state.t < t_end && state.steps < opts.max_steps {
         state.steps += 1;
-        
+
         // Adjust step size for the last step if needed
         if state.t + state.h > t_end {
             state.h = t_end - state.t;
         }
-        
+
         // Check if step size is too small with enhanced recovery strategies
         if state.h < adaptive_min_step {
             // Print diagnostic information - convert to f64 for printing
@@ -3453,13 +3529,13 @@ where
                 state.method_type,
                 state.order
             );
-            
+
             // Enhanced recovery strategy:
             // 1. Use progressively larger min_step thresholds if we keep having issues
             // 2. Always use BDF for stiff problems, but reset BDF if it's struggling
             // 3. Try artificial 'push forward' if we're stuck
             // 4. Only fail after many more attempts with different tactics
-            
+
             // If we've been struggling for many steps with different methods, then fail
             if state.rejected_steps > 15 && state.accepted_steps < 3 {
                 // Before giving up, try one last approach - artificially increase the
@@ -3467,7 +3543,7 @@ where
                 if adaptive_min_step < min_step * F::from_f64(100.0).unwrap() {
                     adaptive_min_step *= F::from_f64(10.0).unwrap();
                     state.h = adaptive_min_step;
-                    
+
                     // For a hard reset, try switching methods again
                     if state.method_type == LsodaMethodType::Adams {
                         state.switch_method(LsodaMethodType::Bdf);
@@ -3479,114 +3555,114 @@ where
                     }
                 } else {
                     // If we've already tried with much larger min_step, finally give up
-                    return Err(IntegrateError::ValueError(
-                        format!("Step size too small in LSODA method, steps taken={}.\nDiagnostic info: {}",
-                                state.steps, diagnostic_info)
-                    ));
+                    return Err(IntegrateError::ValueError(format!(
+                        "Step size too small in LSODA method, steps taken={}.\nDiagnostic info: {}",
+                        state.steps, diagnostic_info
+                    )));
                 }
             } else {
                 // Enforce the minimum step size (may change adaptively)
                 state.h = adaptive_min_step;
-            
+
                 // Reset the order to simplify solution process
                 state.order = 1;
-                
+
                 // Clear some history to prevent issues with past data
                 if state.history.len() > 2 {
                     let last_two = state.history.len() - 2;
                     state.history.drain(0..last_two);
                 }
-                
+
                 // Always switch to BDF method for very small steps
                 if state.method_type == LsodaMethodType::Adams {
                     state.switch_method(LsodaMethodType::Bdf);
                 }
             }
         }
-        
+
         // Take step with current method
         let step_result = match state.method_type {
             LsodaMethodType::Adams => state.adams_step(&f, &opts),
-            LsodaMethodType::Bdf => state.bdf_step(&f, &opts)
+            LsodaMethodType::Bdf => state.bdf_step(&f, &opts),
         };
-        
+
         // Process step result
         match step_result {
             StepResult::Accepted(y_new) => {
                 // Step was successful - update state
                 let t_new = state.t + state.h;
-                
+
                 // Evaluate derivative at new point
                 let dy_new = f(t_new, y_new.view());
                 state.func_evals += 1;
-                
+
                 // Update state
                 state.t = t_new;
                 state.y = y_new.clone();
                 state.dy = dy_new.clone();
-                
+
                 // Add to history
                 state.history.push((t_new, y_new, dy_new));
-                
+
                 // If history is too long, remove oldest entries
                 // But keep enough for the highest possible order
                 let max_history = 12; // Maximum history needed for Adams method
                 if state.history.len() > max_history {
                     state.history.drain(0..state.history.len() - max_history);
                 }
-                
+
                 state.accepted_steps += 1;
-                
+
                 // Counter for consecutive steps with the same method
                 state.consecutive_method_steps += 1;
-            },
+            }
             StepResult::Rejected => {
                 // Step was rejected - continue with smaller step size
                 // Already handled in the step methods
-            },
+            }
             StepResult::ShouldSwitch => {
                 // Method is struggling - try the other method
                 match state.method_type {
                     LsodaMethodType::Adams => {
                         state.switch_method(LsodaMethodType::Bdf);
-                    },
+                    }
                     LsodaMethodType::Bdf => {
                         state.switch_method(LsodaMethodType::Adams);
                     }
                 }
             }
         }
-        
+
         // Consider method switching after a successful step
         // But only if we've been using the same method for a while to prevent oscillation
         // Significantly increased threshold to 100 steps to further reduce oscillation
         if state.consecutive_method_steps >= 100 {
             // Enhanced stiffness detection with conservative thresholds
             let relative_step = state.h / state.t.abs().max(F::one());
-            
+
             // Calculate efficiency metrics
             let acceptance_ratio = if state.rejected_steps == 0 {
                 // If no rejected steps, we're doing great
                 F::from_f64(10.0).unwrap()
             } else {
                 // Calculate ratio of accepted to rejected steps
-                F::from_usize(state.accepted_steps).unwrap() / 
-                F::from_usize(state.rejected_steps).unwrap()
+                F::from_usize(state.accepted_steps).unwrap()
+                    / F::from_usize(state.rejected_steps).unwrap()
             };
-            
+
             // Calculate recent rejection rate - more useful than overall ratio
             // Focus on recent history (last 20-30 steps)
             let recent_total_steps = (state.accepted_steps + state.rejected_steps).min(30);
             let recent_rejection_rate = if recent_total_steps > 0 {
-                F::from_usize(state.rejected_steps.min(recent_total_steps)).unwrap() / 
-                F::from_usize(recent_total_steps).unwrap()
+                F::from_usize(state.rejected_steps.min(recent_total_steps)).unwrap()
+                    / F::from_usize(recent_total_steps).unwrap()
             } else {
                 F::zero()
             };
-            
+
             // Method switching heuristics with extreme hysteresis
             // to prevent oscillation between methods
-            
+
             // For Adams method (non-stiff)
             if state.method_type == LsodaMethodType::Adams {
                 // Use multiple very clear stiffness indicators for switching from Adams to BDF
@@ -3600,7 +3676,7 @@ where
                     (if state.rejected_steps > 15 && acceptance_ratio < F::from_f64(0.3).unwrap() { 1 } else { 0 }) + 
                     // Consistently near min step
                     (if state.accepted_steps > 30 && state.h < adaptive_min_step * F::from_f64(1.2).unwrap() { 1 } else { 0 });
-                    
+
                 // Require at least 2 clear indicators of stiffness
                 if condition_count >= 2 {
                     // Switch to BDF (stiff solver) with diagnostic
@@ -3611,12 +3687,12 @@ where
                         acceptance_ratio.to_f64().unwrap_or(0.0),
                         state.consecutive_method_steps
                     );
-                    
+
                     // Use a slightly larger step when switching to BDF
                     state.h *= F::from_f64(1.5).unwrap();
                     state.switch_method(LsodaMethodType::Bdf);
                 }
-            } 
+            }
             // For BDF method (stiff)
             else if state.method_type == LsodaMethodType::Bdf {
                 // Extremely conservative about switching away from BDF
@@ -3632,7 +3708,7 @@ where
                     (state.accepted_steps > 50) &&
                     // Avoid switching if anywhere near the minimum step
                     (state.h > adaptive_min_step * F::from_f64(20.0).unwrap());
-                
+
                 if should_switch {
                     // Switch to Adams method with diagnostic
                     println!(
@@ -3642,13 +3718,13 @@ where
                         acceptance_ratio.to_f64().unwrap_or(0.0),
                         state.consecutive_method_steps
                     );
-                    
+
                     state.switch_method(LsodaMethodType::Adams);
                 }
             }
         }
     }
-    
+
     // Prepare final result
     let success = state.t >= t_end;
     let message = if !success {
@@ -3662,7 +3738,7 @@ where
             state.nonstiff_to_stiff_switches, state.stiff_to_nonstiff_switches
         ))
     };
-    
+
     // Return actual results now that we've improved the stability
     Ok(state.into_result(success, message))
 }

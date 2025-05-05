@@ -13,11 +13,11 @@
 //! * Signal compression with best basis selection
 //! * Pattern recognition with improved time-frequency localization
 
-use crate::error::{SignalError, SignalResult};
 use crate::dwt::{dwt_decompose, dwt_reconstruct, Wavelet};
+use crate::error::{SignalError, SignalResult};
 use num_traits::{Float, NumCast};
-use std::fmt::Debug;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 /// Node in the wavelet packet tree
 ///
@@ -68,16 +68,16 @@ impl WaveletPacket {
         // The position can be converted to a binary path
         let mut path = Vec::new();
         let mut pos = self.position;
-        
+
         // Convert position to binary path
         for _ in 0..self.level {
             path.push(pos % 2);
             pos /= 2;
         }
-        
+
         // Reverse to get the correct order (from root to leaf)
         path.reverse();
-        
+
         path
     }
 
@@ -105,7 +105,7 @@ impl WaveletPacket {
         // Nothing to decompose if data is too small
         if self.data.len() < 2 {
             return Err(SignalError::ValueError(
-                "Data too small for decomposition".to_string()
+                "Data too small for decomposition".to_string(),
             ));
         }
 
@@ -137,14 +137,14 @@ impl WaveletPacket {
         // Check that the nodes are siblings
         if left.level != right.level || left.parent_position() != right.parent_position() {
             return Err(SignalError::ValueError(
-                "Nodes are not siblings".to_string()
+                "Nodes are not siblings".to_string(),
             ));
         }
 
         // Check that the wavelet and mode match
         if left.wavelet != right.wavelet || left.mode != right.mode {
             return Err(SignalError::ValueError(
-                "Wavelet or mode mismatch between siblings".to_string()
+                "Wavelet or mode mismatch between siblings".to_string(),
             ));
         }
 
@@ -180,11 +180,7 @@ pub struct WaveletPacketTree {
 
 impl WaveletPacketTree {
     /// Create a new wavelet packet tree from a signal
-    pub fn new<T>(
-        data: &[T],
-        wavelet: Wavelet,
-        mode: Option<&str>,
-    ) -> SignalResult<Self>
+    pub fn new<T>(data: &[T], wavelet: Wavelet, mode: Option<&str>) -> SignalResult<Self>
     where
         T: Float + NumCast + Debug,
     {
@@ -192,8 +188,9 @@ impl WaveletPacketTree {
         let signal: Vec<f64> = data
             .iter()
             .map(|&val| {
-                num_traits::cast::cast::<T, f64>(val)
-                    .ok_or_else(|| SignalError::ValueError(format!("Could not convert {:?} to f64", val)))
+                num_traits::cast::cast::<T, f64>(val).ok_or_else(|| {
+                    SignalError::ValueError(format!("Could not convert {:?} to f64", val))
+                })
             })
             .collect::<SignalResult<Vec<_>>>()?;
 
@@ -218,21 +215,22 @@ impl WaveletPacketTree {
     pub fn decompose(&mut self, level: usize) -> SignalResult<()> {
         // Start with nodes at the current maximum level
         let current_max = self.max_level;
-        
+
         // No need to decompose if we're already at or beyond the target level
         if current_max >= level {
             return Ok(());
         }
-        
+
         // Decompose level by level
         for current_level in current_max..level {
             // Get all nodes at the current level
-            let nodes_at_level: Vec<(usize, usize)> = self.nodes
+            let nodes_at_level: Vec<(usize, usize)> = self
+                .nodes
                 .keys()
                 .filter(|(l, _)| *l == current_level)
                 .cloned()
                 .collect();
-            
+
             // Decompose each node at this level
             for (lvl, pos) in nodes_at_level {
                 if let Some(node) = self.nodes.get(&(lvl, pos)) {
@@ -240,10 +238,10 @@ impl WaveletPacketTree {
                     if node.data.len() < 2 {
                         continue;
                     }
-                    
+
                     // Clone the node to avoid borrowing issues
                     let node_clone = node.clone();
-                    
+
                     // Decompose the node
                     if let Ok((left, right)) = node_clone.decompose() {
                         // Add children to the tree
@@ -253,18 +251,18 @@ impl WaveletPacketTree {
                 }
             }
         }
-        
+
         // Update maximum level
         self.max_level = level;
-        
+
         Ok(())
     }
-    
+
     /// Get a node at a specific level and position
     pub fn get_node(&self, level: usize, position: usize) -> Option<&WaveletPacket> {
         self.nodes.get(&(level, position))
     }
-    
+
     /// Get all nodes at a specific level
     pub fn get_level(&self, level: usize) -> Vec<&WaveletPacket> {
         self.nodes
@@ -273,18 +271,19 @@ impl WaveletPacketTree {
             .map(|(_, node)| node)
             .collect()
     }
-    
+
     /// Reconstruct the signal from selected nodes
     pub fn reconstruct_selective(&self, nodes: &[(usize, usize)]) -> SignalResult<Vec<f64>> {
         // Check that all nodes exist
         for &(level, position) in nodes {
             if !self.nodes.contains_key(&(level, position)) {
-                return Err(SignalError::ValueError(
-                    format!("Node at level {} position {} not found", level, position)
-                ));
+                return Err(SignalError::ValueError(format!(
+                    "Node at level {} position {} not found",
+                    level, position
+                )));
             }
         }
-        
+
         // For a single node, just return its data
         if nodes.len() == 1 {
             let (level, position) = nodes[0];
@@ -292,7 +291,7 @@ impl WaveletPacketTree {
                 return Ok(node.data.clone());
             }
         }
-        
+
         // For multiple nodes, check if we have the root node
         // This is a special case where we can immediately return the signal
         if nodes.contains(&(0, 0)) {
@@ -300,24 +299,26 @@ impl WaveletPacketTree {
                 return Ok(root.data.clone());
             }
         }
-        
+
         // If we have all nodes at the same level, we need to reconstruct up the tree
-        
+
         // Group nodes by level
         let mut nodes_by_level: HashMap<usize, Vec<usize>> = HashMap::new();
         for &(level, position) in nodes {
-            nodes_by_level.entry(level).or_insert_with(Vec::new).push(position);
+            nodes_by_level
+                .entry(level)
+                .or_insert_with(Vec::new)
+                .push(position);
         }
-        
+
         // If all nodes are at the same level, try a direct reconstruction
         if nodes_by_level.len() == 1 {
             let level = *nodes_by_level.keys().next().unwrap();
             let positions = nodes_by_level.get(&level).unwrap();
-            
+
             // If we have all nodes at this level, we can reconstruct
             let nodes_at_level = 1 << level; // 2^level
             if positions.len() == nodes_at_level {
-                
                 // Reconstruct from this level to the root
                 // Start with clones of the nodes at this level
                 let mut current_nodes: HashMap<usize, WaveletPacket> = HashMap::new();
@@ -326,57 +327,60 @@ impl WaveletPacketTree {
                         current_nodes.insert(pos, node.clone());
                     }
                 }
-                
+
                 // Reconstruct level by level
                 for l in (0..level).rev() {
                     let mut next_level_nodes = HashMap::new();
-                    
+
                     // Process pairs of nodes
                     for parent_pos in 0..(1 << l) {
                         let left_pos = parent_pos * 2;
                         let right_pos = left_pos + 1;
-                        
-                        if let (Some(left), Some(right)) = (current_nodes.get(&left_pos), current_nodes.get(&right_pos)) {
+
+                        if let (Some(left), Some(right)) =
+                            (current_nodes.get(&left_pos), current_nodes.get(&right_pos))
+                        {
                             if let Ok(parent) = WaveletPacket::reconstruct(left, right) {
                                 next_level_nodes.insert(parent_pos, parent);
                             }
                         }
                     }
-                    
+
                     current_nodes = next_level_nodes;
                 }
-                
+
                 // Return the root node data if available
                 if let Some(root) = current_nodes.get(&0) {
                     return Ok(root.data.clone());
                 }
             }
         }
-        
+
         // If we can't do a direct reconstruction, try a more general approach
         // For simplicity, we'll start by supporting only complete levels
         let level = *nodes_by_level.keys().next().unwrap_or(&0);
         if let Some(positions) = nodes_by_level.get(&level) {
             if positions.len() == 1 << level {
                 // We have all nodes at this level, reconstruct the signal
-                
+
                 // First, collect the nodes' data in correct order
                 let mut subbands = Vec::with_capacity(positions.len());
                 for pos in 0..(1 << level) {
                     if let Some(node) = self.nodes.get(&(level, pos)) {
                         subbands.push(node.data.clone());
                     } else {
-                        return Err(SignalError::ValueError(
-                            format!("Missing node at level {} position {}", level, pos)
-                        ));
+                        return Err(SignalError::ValueError(format!(
+                            "Missing node at level {} position {}",
+                            level, pos
+                        )));
                     }
                 }
-                
+
                 // For a complete set of coefficients at a given level,
                 // we can directly reconstruct the signal
                 let original_length = self.root.data.len();
                 let mut reconstructed = vec![0.0; original_length];
-                
+
                 // In practice, this is a simple approach - we could implement
                 // a more sophisticated reconstruction algorithm
                 // This is just to make tests pass for now
@@ -388,13 +392,15 @@ impl WaveletPacketTree {
                         }
                     }
                 }
-                
+
                 return Ok(reconstructed);
             }
         }
-        
+
         // If we can't do any reconstruction, return an error
-        Err(SignalError::ValueError("Could not reconstruct signal from the given nodes".to_string()))
+        Err(SignalError::ValueError(
+            "Could not reconstruct signal from the given nodes".to_string(),
+        ))
     }
 }
 
@@ -420,17 +426,17 @@ impl WaveletPacketTree {
 ///
 /// // Create a simple signal
 /// let signal = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-/// 
+///
 /// // Perform wavelet packet decomposition to level 2
 /// let wpt = wp_decompose(&signal, Wavelet::DB(4), 2, None).unwrap();
-/// 
+///
 /// // Check that we have the expected number of nodes
 /// // At level 0: 1 node
 /// // At level 1: 2 nodes
 /// // At level 2: 4 nodes
 /// // Total: 7 nodes
 /// assert_eq!(wpt.nodes.len(), 7);
-/// 
+///
 /// // Verify that we have all nodes at level 2
 /// let level2 = wpt.get_level(2);
 /// assert_eq!(level2.len(), 4);
@@ -446,10 +452,10 @@ where
 {
     // Create the wavelet packet tree
     let mut tree = WaveletPacketTree::new(data, wavelet, mode)?;
-    
+
     // Decompose to the specified level
     tree.decompose(level)?;
-    
+
     Ok(tree)
 }
 
@@ -473,22 +479,22 @@ where
 ///
 /// // Create a simple signal
 /// let signal = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-/// 
+///
 /// // Perform wavelet packet decomposition to level 2
 /// let wpt = wp_decompose(&signal, Wavelet::DB(4), 2, None).unwrap();
-/// 
+///
 /// // Get all coefficients at level 2
 /// let coeffs = get_level_coefficients(&wpt, 2);
-/// 
+///
 /// // Check that we have coefficients from all 4 subbands at level 2
 /// assert_eq!(coeffs.len(), 4);
 /// ```
 pub fn get_level_coefficients(tree: &WaveletPacketTree, level: usize) -> Vec<Vec<f64>> {
     let mut nodes = tree.get_level(level);
-    
+
     // Sort by position (left to right)
     nodes.sort_by_key(|node| node.position);
-    
+
     // Extract coefficients
     nodes.iter().map(|node| node.data.clone()).collect()
 }
@@ -513,14 +519,14 @@ pub fn get_level_coefficients(tree: &WaveletPacketTree, level: usize) -> Vec<Vec
 ///
 /// // Create a simple signal
 /// let signal = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-/// 
+///
 /// // Perform wavelet packet decomposition to level 2
 /// let wpt = wp_decompose(&signal, Wavelet::DB(4), 2, None).unwrap();
-/// 
+///
 /// // Reconstruct using all nodes at level 2
 /// let nodes = vec![(2, 0), (2, 1), (2, 2), (2, 3)];
 /// let reconstructed = reconstruct_from_nodes(&wpt, &nodes).unwrap();
-/// 
+///
 /// // Check that the reconstruction has the same length as the original
 /// assert_eq!(reconstructed.len(), signal.len());
 /// ```
@@ -646,7 +652,7 @@ mod tests {
 
         // Verify we have the root node
         assert!(tree.nodes.contains_key(&(0, 0)));
-        
+
         // Reconstruct from the root node directly
         let nodes = vec![(0, 0)];
         let reconstructed = reconstruct_from_nodes(&tree, &nodes).unwrap();
@@ -663,27 +669,27 @@ mod tests {
     #[test]
     fn test_selective_reconstruction() {
         // For selective reconstruction, let's check that we can reconstruct from a level 1 node
-        
+
         // Create a constant signal
         let signal = vec![1.0; 8];
-        
+
         // Perform WPT decomposition to level 1
         let tree = wp_decompose(&signal, Wavelet::Haar, 1, None).unwrap();
-        
+
         // Verify that we have the expected level 1 nodes
         assert!(tree.nodes.contains_key(&(1, 0))); // Level 1, approximation
-        
+
         // Get node data directly
         let approx_node = tree.get_node(1, 0).unwrap();
         let approx_data = &approx_node.data;
-        
+
         // Reconstruction from a single node should return that node's data
         let nodes = vec![(1, 0)]; // Just use the approximation node
         let approx_only = reconstruct_from_nodes(&tree, &nodes).unwrap();
-        
+
         // Check that this gives us the node's data directly
         assert_eq!(approx_only.len(), approx_data.len());
-        
+
         for (i, (&a, &b)) in approx_data.iter().zip(approx_only.iter()).enumerate() {
             assert_eq!(a, b, "Mismatch at index {}", i);
         }

@@ -50,9 +50,9 @@ Or use specific modules directly:
 
 ```toml
 [dependencies]
-scirs2-core = "0.1.0-alpha.1"
-scirs2-linalg = "0.1.0-alpha.1"
-scirs2-stats = "0.1.0-alpha.1"
+scirs2-core = "0.1.0-alpha.2"
+scirs2-linalg = "0.1.0-alpha.2"
+scirs2-stats = "0.1.0-alpha.2"
 ```
 
 Basic usage examples:

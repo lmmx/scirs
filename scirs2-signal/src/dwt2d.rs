@@ -103,7 +103,7 @@ use rayon::prelude::*;
 
 /// Result of a 2D DWT decomposition, containing the approximation and detail coefficients.
 ///
-/// The 2D DWT decomposes an image into four subbands, each representing different 
+/// The 2D DWT decomposes an image into four subbands, each representing different
 /// frequency components in horizontal and vertical directions. These subbands are
 /// represented as separate 2D arrays (matrices) in this struct.
 ///
@@ -261,28 +261,28 @@ where
 
     // Get dimensions
     let (rows, cols) = data.dim();
-    
+
     // Convert input to f64
     let data_f64 = data.mapv(|val| {
         num_traits::cast::cast::<T, f64>(val)
             .unwrap_or_else(|| panic!("Could not convert {:?} to f64", val))
     });
-    
+
     // Calculate output dimensions (ceiling division for half the size)
     // Use integer division that rounds up
-    let output_rows = (rows + 1) / 2;  // TODO: Replace with div_ceil when stable
-    let output_cols = (cols + 1) / 2;  // TODO: Replace with div_ceil when stable
-    
+    let output_rows = (rows + 1) / 2; // TODO: Replace with div_ceil when stable
+    let output_cols = (cols + 1) / 2; // TODO: Replace with div_ceil when stable
+
     // Create output arrays for each subband
     let mut ll = Array2::zeros((output_rows, output_cols));
     let mut lh = Array2::zeros((output_rows, output_cols));
     let mut hl = Array2::zeros((output_rows, output_cols));
     let mut hh = Array2::zeros((output_rows, output_cols));
-    
+
     // Process rows first
     let mut rows_lo = Array2::zeros((rows, output_cols));
     let mut rows_hi = Array2::zeros((rows, output_cols));
-    
+
     // Parallel processing of rows when "parallel" feature is enabled
     #[cfg(feature = "parallel")]
     {
@@ -291,12 +291,12 @@ where
             .into_par_iter()
             .map(|i| {
                 let row = data_f64.slice(ndarray::s![i, ..]).to_vec();
-                let (approx, detail) = dwt::dwt_decompose(&row, wavelet, mode)
-                    .expect("Row transform failed");
+                let (approx, detail) =
+                    dwt::dwt_decompose(&row, wavelet, mode).expect("Row transform failed");
                 (i, approx, detail)
             })
             .collect();
-        
+
         // Copy results back to the arrays
         for (i, approx, detail) in row_results {
             for j in 0..approx.len() {
@@ -305,21 +305,21 @@ where
             }
         }
     }
-    
+
     // Sequential processing when parallel feature is not enabled
     #[cfg(not(feature = "parallel"))]
     {
         for i in 0..rows {
             let row = data_f64.slice(ndarray::s![i, ..]).to_vec();
             let (approx, detail) = dwt::dwt_decompose(&row, wavelet, mode)?;
-            
+
             for j in 0..approx.len() {
                 rows_lo[[i, j]] = approx[j];
                 rows_hi[[i, j]] = detail[j];
             }
         }
     }
-    
+
     // Then process columns
     #[cfg(feature = "parallel")]
     {
@@ -331,46 +331,46 @@ where
                 let col_lo = rows_lo.slice(ndarray::s![.., j]).to_vec();
                 let (approx_lo, detail_lo) = dwt::dwt_decompose(&col_lo, wavelet, mode)
                     .expect("Column transform failed (low-pass)");
-                
+
                 // Process high-pass filtered rows
                 let col_hi = rows_hi.slice(ndarray::s![.., j]).to_vec();
                 let (approx_hi, detail_hi) = dwt::dwt_decompose(&col_hi, wavelet, mode)
                     .expect("Column transform failed (high-pass)");
-                
+
                 (j, approx_lo, detail_lo, approx_hi, detail_hi)
             })
             .collect();
-        
+
         // Copy results back to output arrays
         for (j, approx_lo, detail_lo, approx_hi, detail_hi) in column_results {
             for i in 0..approx_lo.len() {
                 ll[[i, j]] = approx_lo[i];
                 hl[[i, j]] = detail_lo[i];
             }
-            
+
             for i in 0..approx_hi.len() {
                 lh[[i, j]] = approx_hi[i];
                 hh[[i, j]] = detail_hi[i];
             }
         }
     }
-    
+
     #[cfg(not(feature = "parallel"))]
     {
         for j in 0..output_cols {
             // Process low-pass filtered rows
             let col_lo = rows_lo.slice(ndarray::s![.., j]).to_vec();
             let (approx, detail) = dwt::dwt_decompose(&col_lo, wavelet, mode)?;
-            
+
             for i in 0..approx.len() {
                 ll[[i, j]] = approx[i];
                 hl[[i, j]] = detail[i];
             }
-            
+
             // Process high-pass filtered rows
             let col_hi = rows_hi.slice(ndarray::s![.., j]).to_vec();
             let (approx, detail) = dwt::dwt_decompose(&col_hi, wavelet, mode)?;
-            
+
             for i in 0..approx.len() {
                 lh[[i, j]] = approx[i];
                 hh[[i, j]] = detail[i];
@@ -393,7 +393,7 @@ where
 /// Performs a single-level 2D inverse discrete wavelet transform.
 ///
 /// This function reconstructs a 2D array (such as an image) from its wavelet decomposition.
-/// It is the inverse operation of `dwt2d_decompose` and combines the four subbands 
+/// It is the inverse operation of `dwt2d_decompose` and combines the four subbands
 /// (approximation and detail coefficients) back into the original signal.
 ///
 /// # Algorithm
@@ -423,8 +423,8 @@ where
 ///
 /// # Performance
 ///
-/// This operation is computationally efficient, with O(N) complexity where N is the 
-/// total number of elements in the reconstructed array. The actual performance depends 
+/// This operation is computationally efficient, with O(N) complexity where N is the
+/// total number of elements in the reconstructed array. The actual performance depends
 /// on the wavelet filter lengths.
 ///
 /// # Examples
@@ -503,7 +503,7 @@ pub fn dwt2d_reconstruct(
     let lh = &decomposition.detail_h;
     let hl = &decomposition.detail_v;
     let hh = &decomposition.detail_d;
-    
+
     // Verify all components have the same shape
     let shape = ll.shape();
     if lh.shape() != shape || hl.shape() != shape || hh.shape() != shape {
@@ -511,18 +511,18 @@ pub fn dwt2d_reconstruct(
             "All decomposition components must have the same shape".to_string(),
         ));
     }
-    
+
     // Get the shape of the components
     let (rows, cols) = (shape[0], shape[1]);
-    
+
     // Calculate output shape (twice the input dimensions)
     let out_rows = rows * 2;
     let out_cols = cols * 2;
-    
+
     // First, reconstruct columns for low and high frequency parts
     let mut row_lo = Array2::zeros((out_rows, cols));
     let mut row_hi = Array2::zeros((out_rows, cols));
-    
+
     // Parallel column reconstruction
     #[cfg(feature = "parallel")]
     {
@@ -535,17 +535,17 @@ pub fn dwt2d_reconstruct(
                 let hl_col = hl.slice(ndarray::s![.., j]).to_vec();
                 let col_lo = dwt::dwt_reconstruct(&ll_col, &hl_col, wavelet)
                     .expect("Low-pass column reconstruction failed");
-                
+
                 // Reconstruct high-pass columns
                 let lh_col = lh.slice(ndarray::s![.., j]).to_vec();
                 let hh_col = hh.slice(ndarray::s![.., j]).to_vec();
                 let col_hi = dwt::dwt_reconstruct(&lh_col, &hh_col, wavelet)
                     .expect("High-pass column reconstruction failed");
-                
+
                 (j, col_lo, col_hi)
             })
             .collect();
-        
+
         // Store results
         for (j, col_lo, col_hi) in col_results {
             for i in 0..col_lo.len() {
@@ -556,7 +556,7 @@ pub fn dwt2d_reconstruct(
             }
         }
     }
-    
+
     // Sequential column reconstruction
     #[cfg(not(feature = "parallel"))]
     {
@@ -565,12 +565,12 @@ pub fn dwt2d_reconstruct(
             let ll_col = ll.slice(ndarray::s![.., j]).to_vec();
             let hl_col = hl.slice(ndarray::s![.., j]).to_vec();
             let col_lo = dwt::dwt_reconstruct(&ll_col, &hl_col, wavelet)?;
-            
+
             // Reconstruct high-pass columns
             let lh_col = lh.slice(ndarray::s![.., j]).to_vec();
             let hh_col = hh.slice(ndarray::s![.., j]).to_vec();
             let col_hi = dwt::dwt_reconstruct(&lh_col, &hh_col, wavelet)?;
-            
+
             // Store reconstructed columns
             for i in 0..col_lo.len() {
                 if i < out_rows {
@@ -580,10 +580,10 @@ pub fn dwt2d_reconstruct(
             }
         }
     }
-    
+
     // Then, reconstruct rows
     let mut result = Array2::zeros((out_rows, out_cols));
-    
+
     // Parallel row reconstruction
     #[cfg(feature = "parallel")]
     {
@@ -594,15 +594,15 @@ pub fn dwt2d_reconstruct(
                 // Get rows from low and high frequency parts
                 let lo_row = row_lo.slice(ndarray::s![i, ..]).to_vec();
                 let hi_row = row_hi.slice(ndarray::s![i, ..]).to_vec();
-                
+
                 // Reconstruct row
                 let full_row = dwt::dwt_reconstruct(&lo_row, &hi_row, wavelet)
                     .expect("Row reconstruction failed");
-                
+
                 (i, full_row)
             })
             .collect();
-        
+
         // Store results
         for (i, full_row) in row_results {
             for j in 0..full_row.len() {
@@ -612,7 +612,7 @@ pub fn dwt2d_reconstruct(
             }
         }
     }
-    
+
     // Sequential row reconstruction
     #[cfg(not(feature = "parallel"))]
     {
@@ -620,10 +620,10 @@ pub fn dwt2d_reconstruct(
             // Get rows from low and high frequency parts
             let lo_row = row_lo.slice(ndarray::s![i, ..]).to_vec();
             let hi_row = row_hi.slice(ndarray::s![i, ..]).to_vec();
-            
+
             // Reconstruct row
             let full_row = dwt::dwt_reconstruct(&lo_row, &hi_row, wavelet)?;
-            
+
             // Store reconstructed row
             for j in 0..full_row.len() {
                 if j < out_cols {
@@ -632,7 +632,7 @@ pub fn dwt2d_reconstruct(
             }
         }
     }
-    
+
     Ok(result)
 }
 
@@ -746,37 +746,39 @@ where
     if data.is_empty() {
         return Err(SignalError::ValueError("Input array is empty".to_string()));
     }
-    
+
     if levels == 0 {
-        return Err(SignalError::ValueError("Levels must be greater than 0".to_string()));
+        return Err(SignalError::ValueError(
+            "Levels must be greater than 0".to_string(),
+        ));
     }
-    
+
     // Check if the data is large enough for the requested levels
     let (rows, cols) = data.dim();
     let min_size = 2usize.pow(levels as u32);
     if rows < min_size || cols < min_size {
         return Err(SignalError::ValueError(format!(
-            "Data size ({}, {}) is too small for {} levels of decomposition", 
+            "Data size ({}, {}) is too small for {} levels of decomposition",
             rows, cols, levels
         )));
     }
-    
+
     // Allocate storage for all levels
     let mut result = Vec::with_capacity(levels);
-    
+
     // Perform first level
     let mut decomposition = dwt2d_decompose(data, wavelet, mode)?;
     result.push(decomposition.clone());
-    
+
     // Perform remaining levels on approximation coefficients
     for _level in 1..levels {
         decomposition = dwt2d_decompose(&decomposition.approx, wavelet, mode)?;
         result.push(decomposition.clone());
     }
-    
+
     // Reverse so index 0 is the deepest level
     result.reverse();
-    
+
     Ok(result)
 }
 
@@ -888,26 +890,28 @@ pub fn waverec2(
     mode: Option<&str>,
 ) -> SignalResult<Array2<f64>> {
     if coeffs.is_empty() {
-        return Err(SignalError::ValueError("Coefficient list is empty".to_string()));
+        return Err(SignalError::ValueError(
+            "Coefficient list is empty".to_string(),
+        ));
     }
-    
+
     // Start with the deepest level coefficients (which were stored first in the list)
     let mut approx = coeffs[0].approx.clone();
-    
+
     // Reconstruct one level at a time, from deepest to shallowest
     for decomp in coeffs {
         // Create a synthetic decomposition with current approximation and details from this level
         let synthetic_decomp = Dwt2dResult {
             approx,
-            detail_h: decomp.detail_h.clone(), 
+            detail_h: decomp.detail_h.clone(),
             detail_v: decomp.detail_v.clone(),
             detail_d: decomp.detail_d.clone(),
         };
-        
+
         // Reconstruct this level
         approx = dwt2d_reconstruct(&synthetic_decomp, wavelet, mode)?;
     }
-    
+
     Ok(approx)
 }
 
@@ -964,12 +968,12 @@ pub fn threshold_dwt2d(decomposition: &mut Dwt2dResult, threshold: f64, method: 
     for h in decomposition.detail_h.iter_mut() {
         *h = apply_threshold(*h, threshold, method);
     }
-    
+
     // Apply thresholding to vertical detail coefficients
     for v in decomposition.detail_v.iter_mut() {
         *v = apply_threshold(*v, threshold, method);
     }
-    
+
     // Apply thresholding to diagonal detail coefficients
     for d in decomposition.detail_d.iter_mut() {
         *d = apply_threshold(*d, threshold, method);
@@ -1024,7 +1028,7 @@ pub fn threshold_wavedec2(coeffs: &mut [Dwt2dResult], threshold: &[f64], method:
             // If not enough thresholds provided, use the last one
             *threshold.last().unwrap_or(&0.0)
         };
-        
+
         // Apply thresholding to this level
         threshold_dwt2d(level, level_threshold, method);
     }
@@ -1033,15 +1037,15 @@ pub fn threshold_wavedec2(coeffs: &mut [Dwt2dResult], threshold: &[f64], method:
 /// Helper function to apply a threshold to a single coefficient.
 fn apply_threshold(x: f64, threshold: f64, method: ThresholdMethod) -> f64 {
     let abs_x = x.abs();
-    
+
     // If coefficient is below threshold, always zero it out
     if abs_x <= threshold {
         return 0.0;
     }
-    
+
     // Apply the appropriate thresholding method
     match method {
-        ThresholdMethod::Hard => x,  // Hard thresholding keeps the value unchanged
+        ThresholdMethod::Hard => x, // Hard thresholding keeps the value unchanged
         ThresholdMethod::Soft => {
             // Soft thresholding shrinks the value toward zero by the threshold amount
             x.signum() * (abs_x - threshold)
@@ -1105,14 +1109,14 @@ pub fn calculate_energy(decomposition: &Dwt2dResult, include_approx: bool) -> (f
     } else {
         0.0
     };
-    
+
     let detail_h_energy = decomposition.detail_h.iter().map(|&x| x * x).sum();
     let detail_v_energy = decomposition.detail_v.iter().map(|&x| x * x).sum();
     let detail_d_energy = decomposition.detail_d.iter().map(|&x| x * x).sum();
-    
+
     // Calculate total energy
     let total = approx_energy + detail_h_energy + detail_v_energy + detail_d_energy;
-    
+
     // Create energy structure
     let energy_by_subband = WaveletEnergy {
         approx: approx_energy,
@@ -1120,7 +1124,7 @@ pub fn calculate_energy(decomposition: &Dwt2dResult, include_approx: bool) -> (f
         detail_v: detail_v_energy,
         detail_d: detail_d_energy,
     };
-    
+
     (total, energy_by_subband)
 }
 
@@ -1188,14 +1192,14 @@ pub fn count_nonzeros(decomposition: &Dwt2dResult, include_approx: bool) -> (usi
     } else {
         0
     };
-    
+
     let detail_h_count = decomposition.detail_h.iter().filter(|&&x| x != 0.0).count();
     let detail_v_count = decomposition.detail_v.iter().filter(|&&x| x != 0.0).count();
     let detail_d_count = decomposition.detail_d.iter().filter(|&&x| x != 0.0).count();
-    
+
     // Calculate total count
     let total = approx_count + detail_h_count + detail_v_count + detail_d_count;
-    
+
     // Create counts structure
     let counts_by_subband = WaveletCounts {
         approx: approx_count,
@@ -1203,7 +1207,7 @@ pub fn count_nonzeros(decomposition: &Dwt2dResult, include_approx: bool) -> (usi
         detail_v: detail_v_count,
         detail_d: detail_d_count,
     };
-    
+
     (total, counts_by_subband)
 }
 
@@ -1225,33 +1229,35 @@ mod tests {
     use super::*;
     use ndarray::Array2;
     // use approx::assert_relative_eq;  // Not needed for shape checks
-    
+
     #[test]
     fn test_dwt2d_haar() {
         // Create a simple 4x4 test image
-        let data = Array2::from_shape_vec((4, 4), vec![
-            1.0, 2.0, 3.0, 4.0,
-            5.0, 6.0, 7.0, 8.0,
-            9.0, 10.0, 11.0, 12.0,
-            13.0, 14.0, 15.0, 16.0
-        ]).unwrap();
-        
+        let data = Array2::from_shape_vec(
+            (4, 4),
+            vec![
+                1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0,
+                16.0,
+            ],
+        )
+        .unwrap();
+
         // Decompose using Haar wavelet
         let decomposition = dwt2d_decompose(&data, Wavelet::Haar, None).unwrap();
-        
+
         // Check shape
         assert_eq!(decomposition.approx.shape(), &[2, 2]);
         assert_eq!(decomposition.detail_h.shape(), &[2, 2]);
         assert_eq!(decomposition.detail_v.shape(), &[2, 2]);
         assert_eq!(decomposition.detail_d.shape(), &[2, 2]);
-        
+
         // Reconstruct
         let reconstructed = dwt2d_reconstruct(&decomposition, Wavelet::Haar, None).unwrap();
-        
+
         // Check shape matches (perfect reconstruction isn't always possible due to rounding)
         assert_eq!(reconstructed.shape(), data.shape());
     }
-    
+
     #[test]
     fn test_wavedec2_waverec2() {
         // Create a simple 8x8 test image
@@ -1261,21 +1267,21 @@ mod tests {
                 data[[i, j]] = (i * 8 + j + 1) as f64;
             }
         }
-        
+
         // Multi-level decomposition (just using 1 level for reliability)
         let levels = 1;
         let coeffs = wavedec2(&data, Wavelet::Haar, levels, None).unwrap();
-        
+
         // Check number of levels
         assert_eq!(coeffs.len(), levels);
-        
+
         // Reconstruct
         let reconstructed = waverec2(&coeffs, Wavelet::Haar, None).unwrap();
-        
+
         // Check shape matches (perfect reconstruction isn't always possible due to rounding)
         assert_eq!(reconstructed.shape(), data.shape());
     }
-    
+
     #[test]
     fn test_threshold_dwt2d() {
         // Create a simple test image
@@ -1285,23 +1291,23 @@ mod tests {
                 data[[i, j]] = (i * j) as f64;
             }
         }
-        
+
         // Decompose using Haar wavelet
         let mut decomposition = dwt2d_decompose(&data, Wavelet::Haar, None).unwrap();
-        
+
         // Count non-zero coefficients before thresholding
         let (before_count, _) = count_nonzeros(&decomposition, true);
-        
+
         // Apply hard thresholding with a moderate threshold
         let threshold = 5.0;
         threshold_dwt2d(&mut decomposition, threshold, ThresholdMethod::Hard);
-        
+
         // Count non-zero coefficients after thresholding
         let (after_count, _) = count_nonzeros(&decomposition, true);
-        
+
         // There should be fewer non-zero coefficients after thresholding
         assert!(after_count <= before_count);
-        
+
         // Check that coefficients below threshold were set to zero
         for &val in decomposition.detail_h.iter() {
             assert!(val == 0.0 || val.abs() > threshold);
@@ -1313,55 +1319,57 @@ mod tests {
             assert!(val == 0.0 || val.abs() > threshold);
         }
     }
-    
+
     #[test]
     fn test_soft_thresholding() {
         // Create input coefficients
         let values = vec![-10.0, -6.0, -4.0, -2.0, 0.0, 3.0, 5.0, 8.0];
         let threshold = 4.0;
-        
+
         // Apply soft thresholding
-        let thresholded: Vec<f64> = values.iter()
+        let thresholded: Vec<f64> = values
+            .iter()
             .map(|&x| apply_threshold(x, threshold, ThresholdMethod::Soft))
             .collect();
-        
+
         // Expected results:
         // Values below threshold -> 0
         // Values above threshold -> shrink toward zero by threshold amount
         let expected = vec![-6.0, -2.0, 0.0, 0.0, 0.0, 0.0, 1.0, 4.0];
-        
+
         assert_eq!(thresholded.len(), expected.len());
         for (actual, expected) in thresholded.iter().zip(expected.iter()) {
             assert!((actual - expected).abs() < 1e-10);
         }
     }
-    
+
     #[test]
     fn test_garrote_thresholding() {
         // Create input coefficients (avoiding zero for garrote)
         let values = vec![-10.0, -6.0, -4.0, -3.0, 3.0, 5.0, 8.0];
         let threshold = 4.0;
-        
+
         // Apply garrote thresholding
-        let thresholded: Vec<f64> = values.iter()
+        let thresholded: Vec<f64> = values
+            .iter()
             .map(|&x| apply_threshold(x, threshold, ThresholdMethod::Garrote))
             .collect();
-        
+
         // Verify:
         // - Values below threshold are zero
         // - Values above threshold are shrunk non-linearly
-        
+
         // Check threshold behavior
         assert_eq!(thresholded[2], 0.0); // -4.0 becomes 0
         assert_eq!(thresholded[3], 0.0); // -3.0 becomes 0
         assert_eq!(thresholded[4], 0.0); // 3.0 becomes 0
-        
+
         // Check that values above threshold are shrunk non-linearly
         // For garrote: x * (1 - (t²/x²)) where t is threshold
         let expected_0 = -10.0 * (1.0 - (threshold * threshold) / (10.0 * 10.0));
         assert!((thresholded[0] - expected_0).abs() < 1e-10);
     }
-    
+
     #[test]
     fn test_calculate_energy() {
         // Create a simple test image
@@ -1371,32 +1379,32 @@ mod tests {
                 data[[i, j]] = (i * j) as f64;
             }
         }
-        
+
         // Decompose using Haar wavelet
         let decomposition = dwt2d_decompose(&data, Wavelet::Haar, None).unwrap();
-        
+
         // Calculate energy including approximation coefficients
         let (total_energy_with_approx, energy_by_subband) = calculate_energy(&decomposition, true);
-        
+
         // Calculate energy excluding approximation coefficients
         let (total_energy_without_approx, _) = calculate_energy(&decomposition, false);
-        
+
         // Most of the energy should be in the approximation coefficients
         assert!(energy_by_subband.approx > energy_by_subband.detail_h);
         assert!(energy_by_subband.approx > energy_by_subband.detail_v);
         assert!(energy_by_subband.approx > energy_by_subband.detail_d);
-        
+
         // Total energy without approximation should be less than total with approximation
         assert!(total_energy_without_approx < total_energy_with_approx);
-        
+
         // Sum of individual energies should equal total energy
-        let sum_by_subband = energy_by_subband.approx + 
-                            energy_by_subband.detail_h + 
-                            energy_by_subband.detail_v + 
-                            energy_by_subband.detail_d;
+        let sum_by_subband = energy_by_subband.approx
+            + energy_by_subband.detail_h
+            + energy_by_subband.detail_v
+            + energy_by_subband.detail_d;
         assert!((total_energy_with_approx - sum_by_subband).abs() < 1e-10);
     }
-    
+
     #[test]
     fn test_dwt2d_db2() {
         // Create a simple 6x6 test image
@@ -1406,19 +1414,19 @@ mod tests {
                 data[[i, j]] = (i * 6 + j + 1) as f64;
             }
         }
-        
+
         // Decompose using DB2 wavelet
         let decomposition = dwt2d_decompose(&data, Wavelet::DB(2), None).unwrap();
-        
+
         // Check shape
         assert_eq!(decomposition.approx.shape(), &[3, 3]);
         assert_eq!(decomposition.detail_h.shape(), &[3, 3]);
         assert_eq!(decomposition.detail_v.shape(), &[3, 3]);
         assert_eq!(decomposition.detail_d.shape(), &[3, 3]);
-        
+
         // Reconstruct
         let reconstructed = dwt2d_reconstruct(&decomposition, Wavelet::DB(2), None).unwrap();
-        
+
         // Check shape matches (perfect reconstruction isn't always possible due to rounding)
         assert_eq!(reconstructed.shape(), data.shape());
     }

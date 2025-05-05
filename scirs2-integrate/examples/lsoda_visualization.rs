@@ -9,28 +9,25 @@ fn main() {
     println!("This example focuses on collecting detailed information about when and why");
     println!("LSODA switches between methods, to help understand its behavior");
     println!("The output is formatted to be easily parsed for visualization");
-    
+
     // First example: A system with regions of varying stiffness
     println!("\nRunning stiffness wave example");
     println!("This system's stiffness oscillates between stiff and non-stiff regions");
-    
+
     // System with oscillating stiffness
     let stiffness_wave = |t: f64, y: ArrayView1<f64>| {
         // The stiffness parameter oscillates between -1 and 1001
         // This causes the system to alternate between stiff and non-stiff regions
         let stiffness = 500.0 + 500.0 * (t * 0.5).sin();
-        
+
         // A 2D system where the first component has variable stiffness
         // and the second is constant for reference
-        array![
-            -stiffness * y[0],
-            -y[1]
-        ]
+        array![-stiffness * y[0], -y[1]]
     };
-    
+
     let result = solve_ivp(
         stiffness_wave,
-        [0.0, 40.0],  // Long enough to see multiple stiffness cycles
+        [0.0, 40.0], // Long enough to see multiple stiffness cycles
         array![1.0, 1.0],
         Some(ODEOptions {
             method: ODEMethod::LSODA,
@@ -43,47 +40,54 @@ fn main() {
             ..Default::default()
         }),
     );
-    
+
     match result {
         Ok(res) => {
             println!("Integration successful!");
-            println!("Steps: {}, Function evaluations: {}", res.n_steps, res.n_eval);
+            println!(
+                "Steps: {}, Function evaluations: {}",
+                res.n_steps, res.n_eval
+            );
             println!("Accepted: {}, Rejected: {}", res.n_accepted, res.n_rejected);
-            
+
             if let Some(msg) = &res.message {
                 println!("{}", msg);
             }
-            
+
             // Save detailed results for visualization
             let mut file = File::create("lsoda_visualization_data.csv").unwrap();
             writeln!(&mut file, "t,y1,y2,stiffness,h,method").unwrap();
-            
+
             // Method string representations for CSV output
             let method_names = ["unknown", "Adams", "BDF"];
-            
+
             // Reconstruct stiffness at each time point and save with solution
             for i in 0..res.t.len() {
                 let t = res.t[i];
                 let stiffness = 500.0 + 500.0 * (t * 0.5).sin();
-                
+
                 // We can't directly access which method was used at each step from the result
                 // But we can infer it based on the step size pattern or just use "unknown"
                 // In a real visualization tool, you would need to capture this during integration
-                let method_idx = 0;  // Will be filled with real method info in enhanced solver
-                
+                let method_idx = 0; // Will be filled with real method info in enhanced solver
+
                 writeln!(
-                    &mut file, 
+                    &mut file,
                     "{:.6},{:.10e},{:.10e},{:.6},{:.10e},{}",
-                    t, res.y[i][0], res.y[i][1], stiffness, 
-                    if i > 0 { res.t[i] - res.t[i-1] } else { 0.1 }, 
+                    t,
+                    res.y[i][0],
+                    res.y[i][1],
+                    stiffness,
+                    if i > 0 { res.t[i] - res.t[i - 1] } else { 0.1 },
                     method_names[method_idx]
-                ).unwrap();
+                )
+                .unwrap();
             }
-            
+
             println!("\nData saved to lsoda_visualization_data.csv");
             println!("This file contains t, y values, stiffness, and step size info");
             println!("You can use this data to visualize the solution and method switching");
-            
+
             // Generate instructions for plotting
             let mut readme = File::create("lsoda_visualization_plotting_guide.txt").unwrap();
             writeln!(
@@ -148,69 +152,74 @@ fn main() {
                 \n\
                 For optimal visualization of LSODA's behavior, consider enhancing the solver\n\
                 to output additional diagnostic information during integration."
-            ).unwrap();
-            
+            )
+            .unwrap();
+
             println!("A plotting guide has been saved to lsoda_visualization_plotting_guide.txt");
-        },
+        }
         Err(e) => {
             println!("Integration failed: {}", e);
         }
     }
-    
+
     // Second example: Robertson chemical reaction system
     // This is a classic stiff problem that's good for demonstrating method switching
     println!("\nRunning Robertson chemical reaction example");
     println!("This is a standard test case for stiff ODE solvers");
-    
+
     let robertson = |_t: f64, y: ArrayView1<f64>| {
         let k1 = 0.04;
         let k2 = 3.0e7;
         let k3 = 1.0e4;
-        
+
         array![
             -k1 * y[0] + k3 * y[1] * y[2],
             k1 * y[0] - k2 * y[1].powi(2) - k3 * y[1] * y[2],
             k2 * y[1].powi(2)
         ]
     };
-    
+
     let result = solve_ivp(
         robertson,
-        [0.0, 1000.0],  // Long time interval to see full behavior
+        [0.0, 1000.0], // Long time interval to see full behavior
         array![1.0, 0.0, 0.0],
         Some(ODEOptions {
             method: ODEMethod::LSODA,
             rtol: 1e-4,
-            atol: 1e-7,  // Tighter atol for this problem
+            atol: 1e-7, // Tighter atol for this problem
             max_steps: 10000,
             // No verbose option available
             ..Default::default()
         }),
     );
-    
+
     match result {
         Ok(res) => {
             println!("Integration successful!");
-            println!("Steps: {}, Function evaluations: {}", res.n_steps, res.n_eval);
+            println!(
+                "Steps: {}, Function evaluations: {}",
+                res.n_steps, res.n_eval
+            );
             println!("Accepted: {}, Rejected: {}", res.n_accepted, res.n_rejected);
-            
+
             if let Some(msg) = &res.message {
                 println!("{}", msg);
             }
-            
+
             // Save solution trajectory
             let mut file = File::create("robertson_solution.csv").unwrap();
             writeln!(&mut file, "t,y1,y2,y3,step_size").unwrap();
-            
+
             for i in 0..res.t.len() {
-                let step_size = if i > 0 { res.t[i] - res.t[i-1] } else { 0.0 };
+                let step_size = if i > 0 { res.t[i] - res.t[i - 1] } else { 0.0 };
                 writeln!(
-                    &mut file, 
+                    &mut file,
                     "{:.8e},{:.8e},{:.8e},{:.8e},{:.8e}",
                     res.t[i], res.y[i][0], res.y[i][1], res.y[i][2], step_size
-                ).unwrap();
+                )
+                .unwrap();
             }
-            
+
             println!("\nSolution saved to robertson_solution.csv");
             println!("Note the characteristic behavior:");
             println!("- y₁ decreases from 1.0 to ~0.0 (most of it converts to y₃)");
@@ -218,12 +227,12 @@ fn main() {
             println!("- y₃ increases from 0.0 toward 1.0 (end product)");
             println!("- The problem is very stiff in the initial transient phase");
             println!("- LSODA should switch to BDF method during the stiff phase");
-        },
+        }
         Err(e) => {
             println!("Integration failed: {}", e);
         }
     }
-    
+
     println!("\nAdvanced Method Switching Analysis");
     println!("---------------------------------");
     println!("To truly visualize LSODA's method switching behavior, the solver would");

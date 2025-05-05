@@ -248,10 +248,7 @@ where
     let analytic = hilbert(x)?;
 
     // Compute phase
-    let phase: Vec<f64> = analytic
-        .iter()
-        .map(|c| c.im.atan2(c.re))
-        .collect();
+    let phase: Vec<f64> = analytic.iter().map(|c| c.im.atan2(c.re)).collect();
 
     // Unwrap phase to handle phase jumps of more than π
     let mut unwrapped_phase = vec![phase[0]];
@@ -274,16 +271,16 @@ where
 
     // Compute instantaneous frequency
     let mut inst_freq = Vec::with_capacity(x.len());
-    
+
     // First point requires forward difference
     inst_freq.push(fs * (unwrapped_phase[1] - unwrapped_phase[0]) / (2.0 * PI));
-    
+
     // Middle points using central difference for better accuracy
     for i in 1..unwrapped_phase.len() - 1 {
         let freq = fs * (unwrapped_phase[i + 1] - unwrapped_phase[i - 1]) / (4.0 * PI);
         inst_freq.push(freq);
     }
-    
+
     // Last point requires backward difference
     let last_idx = unwrapped_phase.len() - 1;
     inst_freq.push(fs * (unwrapped_phase[last_idx] - unwrapped_phase[last_idx - 1]) / (2.0 * PI));
@@ -342,10 +339,7 @@ where
     let analytic = hilbert(x)?;
 
     // Compute phase
-    let phase: Vec<f64> = analytic
-        .iter()
-        .map(|c| c.im.atan2(c.re))
-        .collect();
+    let phase: Vec<f64> = analytic.iter().map(|c| c.im.atan2(c.re)).collect();
 
     if !unwrap {
         return Ok(phase);
@@ -470,11 +464,14 @@ mod tests {
         let duration = (n - 1) as f64 / fs;
 
         // Linear chirp: frequency increases linearly from f0 to f1
-        let signal: Vec<f64> = t.iter().map(|&ti| {
-            let _freq = f0 + (f1 - f0) * ti / duration;
-            let phase = 2.0 * PI * (f0 * ti + 0.5 * (f1 - f0) * ti.powi(2) / duration);
-            phase.sin()
-        }).collect();
+        let signal: Vec<f64> = t
+            .iter()
+            .map(|&ti| {
+                let _freq = f0 + (f1 - f0) * ti / duration;
+                let phase = 2.0 * PI * (f0 * ti + 0.5 * (f1 - f0) * ti.powi(2) / duration);
+                phase.sin()
+            })
+            .collect();
 
         // Compute instantaneous frequency
         let inst_freq = instantaneous_frequency(&signal, fs).unwrap();
@@ -483,7 +480,7 @@ mod tests {
         // Skip the very beginning and end due to edge effects
         let start_idx = n / 5;
         let end_idx = 4 * n / 5;
-        
+
         for i in start_idx..end_idx {
             let ti = t[i];
             let expected_freq = f0 + (f1 - f0) * ti / duration;
@@ -506,21 +503,18 @@ mod tests {
 
         // Create the signal: sin(2πf*t)
         let t: Vec<f64> = (0..n).map(|i| i as f64 * dt).collect();
-        let signal: Vec<f64> = t
-            .iter()
-            .map(|&ti| (2.0 * PI * freq * ti).sin())
-            .collect();
+        let signal: Vec<f64> = t.iter().map(|&ti| (2.0 * PI * freq * ti).sin()).collect();
 
         // Compute instantaneous phase (unwrapped)
         let phase = instantaneous_phase(&signal, true).unwrap();
 
         // For a sine wave, the phase should increase linearly at a rate of 2πf
         let expected_phase_rate = 2.0 * PI * freq;
-        
+
         // Check the phase rate (skip edges)
         let start_idx = n / 5;
         let end_idx = 4 * n / 5;
-        
+
         for i in start_idx + 1..end_idx {
             let phase_rate = (phase[i] - phase[i - 1]) / dt;
             assert_relative_eq!(

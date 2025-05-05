@@ -21,7 +21,7 @@ use crate::lti::LtiSystem;
 /// # Examples
 ///
 /// ```ignore
-/// // This example is marked as ignore because the implementation 
+/// // This example is marked as ignore because the implementation
 /// // needs more work for numerical accuracy
 /// use scirs2_signal::lti::TransferFunction;
 /// use scirs2_signal::lti_response::impulse_response;
@@ -46,10 +46,7 @@ use crate::lti::LtiSystem;
 ///     assert!((response[i] - expected).abs() < 0.5); // Allow more numerical error
 /// }
 /// ```
-pub fn impulse_response<T: LtiSystem>(
-    system: &T,
-    t: &[f64],
-) -> SignalResult<Vec<f64>> {
+pub fn impulse_response<T: LtiSystem>(system: &T, t: &[f64]) -> SignalResult<Vec<f64>> {
     system.impulse_response(t)
 }
 
@@ -67,7 +64,7 @@ pub fn impulse_response<T: LtiSystem>(
 /// # Examples
 ///
 /// ```ignore
-/// // This example is marked as ignore because the implementation 
+/// // This example is marked as ignore because the implementation
 /// // needs more work for numerical accuracy
 /// use scirs2_signal::lti::TransferFunction;
 /// use scirs2_signal::lti_response::step_response;
@@ -92,10 +89,7 @@ pub fn impulse_response<T: LtiSystem>(
 ///     assert!((response[i] - expected).abs() < 0.5); // Allow more numerical error
 /// }
 /// ```
-pub fn step_response<T: LtiSystem>(
-    system: &T,
-    t: &[f64],
-) -> SignalResult<Vec<f64>> {
+pub fn step_response<T: LtiSystem>(system: &T, t: &[f64]) -> SignalResult<Vec<f64>> {
     system.step_response(t)
 }
 
@@ -114,7 +108,7 @@ pub fn step_response<T: LtiSystem>(
 /// # Examples
 ///
 /// ```ignore
-/// // This example is marked as ignore because the implementation 
+/// // This example is marked as ignore because the implementation
 /// // needs more work for numerical accuracy
 /// use scirs2_signal::lti::TransferFunction;
 /// use scirs2_signal::lti_response::lsim;
@@ -145,69 +139,65 @@ pub fn step_response<T: LtiSystem>(
 /// // Output should be the convolution of the input with the impulse response
 /// assert_eq!(y.len(), t.len());
 /// ```
-pub fn lsim<T: LtiSystem>(
-    system: &T,
-    u: &[f64],
-    t: &[f64],
-) -> SignalResult<Vec<f64>> {
+pub fn lsim<T: LtiSystem>(system: &T, u: &[f64], t: &[f64]) -> SignalResult<Vec<f64>> {
     if t.is_empty() || u.is_empty() {
         return Ok(Vec::new());
     }
-    
+
     if t.len() != u.len() {
         return Err(SignalError::ValueError(
             "Time and input vectors must have the same length".to_string(),
         ));
     }
-    
+
     // Convert to state-space for simulation
     let ss = system.to_ss()?;
-    
+
     // Initialize state and output vectors
     let mut x = vec![0.0; ss.n_states];
     let mut y = vec![0.0; t.len()];
-    
+
     // For continuous-time systems, use numerical integration
     if !ss.dt {
         // Calculate time step (assuming uniform spacing)
         let dt = if t.len() > 1 { t[1] - t[0] } else { 0.001 };
-        
+
         // Simulate the system using improved forward Euler integration
         // Initialize state to zero
         for k in 0..t.len() {
             // Calculate output: y = Cx + Du
             for i in 0..ss.n_outputs {
                 let mut output = 0.0;
-                
+
                 // Calculate the Cx term
                 for (j, &x_val) in x.iter().enumerate().take(ss.n_states) {
                     output += ss.c[i * ss.n_states + j] * x_val;
                 }
-                
+
                 // Add the Du term if we have inputs
                 if !u.is_empty() {
                     for j in 0..ss.n_inputs {
                         output += ss.d[i * ss.n_inputs + j] * u[k];
                     }
                 }
-                
+
                 // For single output case
                 if i == 0 || ss.n_outputs == 1 {
                     y[k] = output;
                 }
             }
-            
+
             // Update state using forward Euler: dx/dt = Ax + Bu
             if k < t.len() - 1 {
                 let mut x_dot = vec![0.0; ss.n_states];
-                
+
                 // Calculate x_dot = Ax + Bu
                 for i in 0..ss.n_states {
                     // First the Ax term
                     for (j, &x_val) in x.iter().enumerate().take(ss.n_states) {
                         x_dot[i] += ss.a[i * ss.n_states + j] * x_val;
                     }
-                    
+
                     // Then add the Bu term if inputs are available
                     if !u.is_empty() {
                         for j in 0..ss.n_inputs {
@@ -215,7 +205,7 @@ pub fn lsim<T: LtiSystem>(
                         }
                     }
                 }
-                
+
                 // Update x = x + x_dot * dt
                 for i in 0..ss.n_states {
                     x[i] += x_dot[i] * dt;
@@ -228,36 +218,36 @@ pub fn lsim<T: LtiSystem>(
             // Calculate output: y[k] = Cx[k] + Du[k]
             for i in 0..ss.n_outputs {
                 let mut output = 0.0;
-                
+
                 // Calculate Cx term
                 for j in 0..ss.n_states {
                     output += ss.c[i * ss.n_states + j] * x[j];
                 }
-                
+
                 // Add Du term if inputs are available
                 if !u.is_empty() {
                     for j in 0..ss.n_inputs {
                         output += ss.d[i * ss.n_inputs + j] * u[k];
                     }
                 }
-                
+
                 // Store output for single output case
                 if i == 0 || ss.n_outputs == 1 {
                     y[k] = output;
                 }
             }
-            
+
             // Update state: x[k+1] = Ax[k] + Bu[k]
             if k < t.len() - 1 {
                 let mut x_new = vec![0.0; ss.n_states];
-                
+
                 // Calculate Ax term
                 for i in 0..ss.n_states {
                     for j in 0..ss.n_states {
                         x_new[i] += ss.a[i * ss.n_states + j] * x[j];
                     }
                 }
-                
+
                 // Add Bu term if inputs are available
                 if !u.is_empty() {
                     for i in 0..ss.n_states {
@@ -266,12 +256,12 @@ pub fn lsim<T: LtiSystem>(
                         }
                     }
                 }
-                
+
                 x = x_new;
             }
         }
     }
-    
+
     Ok(y)
 }
 
@@ -279,87 +269,82 @@ pub fn lsim<T: LtiSystem>(
 mod tests {
     use super::*;
     use crate::lti::TransferFunction;
-    
+
     #[test]
     #[ignore = "Implementation needs more work on numerical integration"]
     fn test_first_order_impulse_response() {
         // Create a first-order system: H(s) = 1 / (s + 1)
-        let tf = TransferFunction::new(
-            vec![1.0],
-            vec![1.0, 1.0],
-            None,
-        ).unwrap();
-        
+        let tf = TransferFunction::new(vec![1.0], vec![1.0, 1.0], None).unwrap();
+
         // Generate time vector
         let t: Vec<f64> = (0..20).map(|i| i as f64 * 0.1).collect();
-        
+
         // Calculate impulse response
         let response = impulse_response(&tf, &t).unwrap();
-        
+
         // Check length
         assert_eq!(response.len(), t.len());
-        
+
         // Check against analytical solution: h(t) = e^(-t)
         // Skip early points and allow for significantly more numerical error
         // The basic integration method used has limited accuracy
         for (i, &time) in t.iter().enumerate() {
-            if i > 3 { // Skip more points at the beginning
+            if i > 3 {
+                // Skip more points at the beginning
                 let expected = (-time).exp();
                 assert!((response[i] - expected).abs() < 0.5);
             }
         }
     }
-    
+
     #[test]
     #[ignore = "Implementation needs more work on numerical integration"]
     fn test_first_order_step_response() {
         // Create a first-order system: H(s) = 1 / (s + 1)
-        let tf = TransferFunction::new(
-            vec![1.0],
-            vec![1.0, 1.0],
-            None,
-        ).unwrap();
-        
+        let tf = TransferFunction::new(vec![1.0], vec![1.0, 1.0], None).unwrap();
+
         // Generate time vector
         let t: Vec<f64> = (0..20).map(|i| i as f64 * 0.1).collect();
-        
+
         // Calculate step response
         let response = step_response(&tf, &t).unwrap();
-        
+
         // Check length
         assert_eq!(response.len(), t.len());
-        
+
         // Check against analytical solution: y(t) = 1 - e^(-t)
         // Skip early points and allow for significantly more numerical error
         // The basic integration method used has limited accuracy
         for (i, &time) in t.iter().enumerate() {
-            if i > 3 { // Skip more points at the beginning
+            if i > 3 {
+                // Skip more points at the beginning
                 let expected = 1.0 - (-time).exp();
                 assert!((response[i] - expected).abs() < 0.5);
             }
         }
     }
-    
+
     #[test]
     #[ignore = "Implementation needs more work on arbitrary input handling"]
     fn test_sine_input_response() {
         // Create a first-order system: H(s) = 1 / (s + 1)
         let tf = TransferFunction::new(
-            vec![1.0],           // Numerator: 1
-            vec![1.0, 1.0],      // Denominator: s + 1
+            vec![1.0],      // Numerator: 1
+            vec![1.0, 1.0], // Denominator: s + 1
             None,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         // Generate time vector and sinusoidal input
         let t: Vec<f64> = (0..100).map(|i| i as f64 * 0.1).collect();
         let u: Vec<f64> = t.iter().map(|&time| time.sin()).collect();
-        
+
         // Simulate response
         let y = lsim(&tf, &u, &t).unwrap();
-        
+
         // Check length
         assert_eq!(y.len(), t.len());
-        
+
         // The response should follow the input with some lag and amplitude change
         // Just check that the response is non-zero
         assert!(y.iter().any(|&val| val.abs() > 1e-6));
