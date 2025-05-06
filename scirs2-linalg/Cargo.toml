@@ -25,8 +25,8 @@ approx = "0.5.1"
 wide = "0.7.32"
 rayon = "1.10.0"
 scirs2-autograd = { path = "../scirs2-autograd", version = "0.1.0-alpha.2", optional = true }
-openblas-src = "*"
-blas = "*"
+openblas-src = "0.10.11"
+blas = "0.23.0"
 
 [dev-dependencies]
 approx = "0.5.1"
