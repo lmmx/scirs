@@ -34,8 +34,6 @@
 //! // let filtered = filtfilt(&b, &a, &signal).unwrap();
 //! ```
 
-extern crate openblas_src;
-
 // Export error types
 pub mod error;
 pub use error::{SignalError, SignalResult};

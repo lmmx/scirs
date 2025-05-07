@@ -281,7 +281,6 @@
 //! // Generate a random permutation
 //! let permutation = sampling::permutation(&data.view(), Some(123)).unwrap();
 //! ```
-extern crate openblas_src;
 
 // Export error types
 pub mod error;
