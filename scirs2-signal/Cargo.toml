@@ -16,7 +16,6 @@ ndarray = { version = "0.16.1", features = ["serde", "rayon"] }
 num-traits = "0.2.19"
 num-complex = "0.4.6"
 thiserror = "2.0.12"
-openblas-src = "0.10.11"
 
 # Signal processing specific dependencies
 rustfft = "6.2.0"
