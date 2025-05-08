@@ -1,11 +1,11 @@
 [package]
 name = "scirs2-sparse"
 version = "0.1.0-alpha.2"
-edition = "2021"
-authors = ["SciRS2 Team"]
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "Sparse matrix module for SciRS2"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/cool-japan/scirs"
 keywords = ["sparse-matrix", "csr", "scientific", "scipy", "numerical"]
 categories = ["science", "mathematics", "algorithms"]
 

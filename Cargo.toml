@@ -28,7 +28,7 @@ members = [
     "scirs2-series",
     "scirs2-autograd",
 ]
-resolver = "2"
+resolver = "3"
 
 [workspace.metadata.nox]
 bench_crates = ["scirs2-ndimage"]
@@ -36,9 +36,9 @@ bench_crates = ["scirs2-ndimage"]
 [workspace.package]
 version = "0.1.0-alpha.2"
 edition = "2021"
-authors = ["SciRS2 Team"]
 description = "A Rust port of SciPy with AI/ML extensions - Scientific Computing and AI Library"
 license = "MIT OR Apache-2.0"
+rust-version = "1.56.0"
 repository = "https://github.com/cool-japan/scirs"
 keywords = ["scientific", "mathematics", "science", "scipy", "ai", "machine-learning"]
 categories = ["science", "mathematics", "algorithms", "ai"]
