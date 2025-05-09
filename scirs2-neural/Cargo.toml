@@ -6,42 +6,46 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Neural network building blocks module for SciRS2"
-keywords = ["neural-network", "deep-learning", "scientific", "ai", "machine-learning"]
+keywords = [
+  "neural-network",
+  "deep-learning",
+  "scientific",
+  "ai",
+  "machine-learning",
+]
 categories = ["science", "mathematics", "algorithms"]
 
 [dependencies]
 # Core dependencies
-scirs2-core = { path = "../scirs2-core", version = "0.1.0-alpha.2", optional = true, features = ["linalg", "openblas"] }
+scirs2-core = { workspace = true, features = ["linalg", "openblas"], optional = true }
 # Temporarily commented out for publishing
 # scirs2-linalg = { path = "../scirs2-linalg", version = "0.1.0-alpha.2", optional = true }
 # scirs2-optimize = { path = "../scirs2-optimize", version = "0.1.0-alpha.2", optional = true }
 # scirs2-optim = { path = "../scirs2-optim", version = "0.1.0-alpha.2", optional = true }
-ndarray = { version = "0.16.1", features = ["serde", "rayon"] }
-ndarray-stats = "0.5.0"
-ndarray-linalg = { version = "0.17.0", features = ["openblas-static"] }
-num-integer = "0.1.46"
-approx = "0.5.1"
-num-traits = "0.2.19"
-num-complex = "0.4.6"
-thiserror = "1.0.69"
-rand = "0.9.0"
-rand_distr = "0.5.0"
-blas = "0.23.0"
-openblas-src = "0.10.11"
-
-# AI/ML specific dependencies
-autograd = "1.1.1"
+ndarray = { workspace = true, features = ["serde", "rayon"] }
+ndarray-stats.workspace = true
+ndarray-linalg = { workspace = true, features = ["openblas-static"] }
+num-integer.workspace = true
+approx.workspace = true
+num-traits.workspace = true
+num-complex.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
+blas.workspace = true
+openblas-src.workspace = true
+autograd.workspace = true
 # Temporarily commented out for publishing
 # scirs2-autograd = { path = "../scirs2-autograd", version = "0.1.0-alpha.2" }
 
 # Note: clip_example.rs and feature_fusion_example.rs were removed due to BLAS linking issues
 
 # Serialization dependencies
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_yaml = "0.9"
-serde_cbor = "0.11.2"
-rmp-serde = "1.0.0"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_yaml.workspace = true
+serde_cbor.workspace = true
+rmp-serde.workspace = true
 
 # Future dependency for PandRS and NumRS with appropriate abstractions
 # pandrs_wrapper = { path = "../wrappers/pandrs_wrapper", optional = true }
@@ -49,12 +53,12 @@ rmp-serde = "1.0.0"
 
 [features]
 default = ["openblas"]
-full = ["core", "openblas"]  # Temporarily limited for publishing
+full = ["core", "openblas"] # Temporarily limited for publishing
 core = ["dep:scirs2-core"]
 # Features temporarily disabled for publishing
 # linalg = ["dep:scirs2-linalg"] 
 # optimize = ["dep:scirs2-optimize"]
-optim = [] # Empty feature for compatibility with existing code
+optim = []                                    # Empty feature for compatibility with existing code
 openblas = ["ndarray-linalg/openblas-static"]
 netlib = ["ndarray-linalg/netlib"]
 intel-mkl = ["ndarray-linalg/intel-mkl"]

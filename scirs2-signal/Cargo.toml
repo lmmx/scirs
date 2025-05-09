@@ -10,27 +10,24 @@ keywords = ["signal-processing", "filter", "scientific", "scipy", "numerical"]
 categories = ["science", "mathematics", "algorithms"]
 
 [dependencies]
-# Core dependencies
-scirs2-core = { path = "../scirs2-core", version = "0.1.0-alpha.2" }
-ndarray = { version = "0.16.1", features = ["serde", "rayon"] }
-num-traits = "0.2.19"
-num-complex = "0.4.6"
-thiserror = "2.0.12"
-openblas-src = "0.10.11"
-
-# Signal processing specific dependencies
-rustfft = "6.2.0"
-scirs2-fft = { path = "../scirs2-fft", version = "0.1.0-alpha.2" }
-scirs2-linalg = { path = "../scirs2-linalg", version = "0.1.0-alpha.2" }
-rand = "0.9.0"
-plotly = "0.12.1"
+scirs2-core.workspace = true
+ndarray = { workspace = true, features = ["serde", "rayon"] }
+num-traits.workspace = true
+num-complex.workspace = true
+thiserror.workspace = true
+openblas-src.workspace = true
+rustfft.workspace = true
+scirs2-fft.workspace = true
+scirs2-linalg.workspace = true
+rand.workspace = true
+plotly.workspace = true
 # Optional rayon dependency for parallel processing
-rayon = { version = "1.8.1", optional = true }
+rayon = { workspace = true, optional = true }
 
 [features]
 default = []
 parallel = ["rayon"]
 
 [dev-dependencies]
-approx = "0.5.1"
-criterion = "0.5.1"
+approx.workspace = true
+criterion.workspace = true

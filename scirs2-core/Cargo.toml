@@ -11,56 +11,65 @@ categories = ["science", "mathematics", "algorithms"]
 
 [dependencies]
 # Core dependencies
-ndarray = { version = "0.16.1", features = ["serde", "rayon"] }
-num-traits = "0.2.19"
-num-complex = "0.4.6"
-thiserror = "2.0.12"
+ndarray = { workspace = true, features = ["serde", "rayon"] }
+num-traits.workspace = true
+num-complex.workspace = true
+thiserror.workspace = true
 once_cell.workspace = true
-cached = { workspace = true, optional = true }  # Memoization and caching
+cached = { workspace = true, optional = true }                # Memoization and caching
 chrono.workspace = true
-rand = "0.9.0"
+rand.workspace = true
 rand_distr.workspace = true
-serde.workspace = true  # Serialization for memory snapshots
-serde_json.workspace = true  # JSON serialization for memory metrics
+serde.workspace = true                                        # Serialization for memory snapshots
+serde_json.workspace = true                                   # JSON serialization for memory metrics
 
 # Feature-gated dependencies
 wide = { workspace = true, optional = true }  # SIMD acceleration
-rayon = { workspace = true, optional = true }  # Parallel processing
+rayon = { workspace = true, optional = true } # Parallel processing
 
 # BLAS/LAPACK dependencies for linear algebra operations
-ndarray-linalg = { workspace = true, optional = true }  # LAPACK bindings for ndarray
+ndarray-linalg = { workspace = true, optional = true } # LAPACK bindings for ndarray
 
 [dev-dependencies]
-approx = "0.5.1"
-criterion = "0.5.1"
+approx.workspace = true
+criterion.workspace = true
 tempfile.workspace = true
 
 [features]
-default = []  # No performance features enabled by default for now
-simd = ["wide"]  # SIMD operations
-parallel = ["rayon", "ndarray/rayon"]  # Parallel processing with rayon
-cache = ["cached"]  # Caching and memoization functionality
-validation = []  # Validation utilities
-logging = []  # Structured logging and diagnostics
-gpu = []  # GPU acceleration abstractions
-cuda = ["gpu"]  # CUDA-specific GPU acceleration
-memory_management = []  # Advanced memory management
-memory_metrics = ["memory_management"]  # Enhanced memory metrics tracking
-memory_visualization = ["memory_metrics"]  # Memory usage visualization
-memory_call_stack = ["memory_metrics"]  # Capture call stacks for memory events
-profiling = []  # Performance profiling tools
-random = []  # Random number generation utilities
-types = []  # Type conversion utilities
-ufuncs = []  # Universal Functions (ufuncs) system
-linalg = ["ndarray-linalg"]  # Linear algebra with BLAS/LAPACK bindings
-openblas = ["ndarray-linalg/openblas-static"]  # Use OpenBLAS backend
-intel-mkl = ["ndarray-linalg/intel-mkl"]  # Use Intel MKL backend
-netlib = ["ndarray-linalg/netlib"]  # Use Netlib backend
+default = [] # No performance features enabled by default for now
+simd = ["wide"] # SIMD operations
+parallel = ["rayon", "ndarray/rayon"] # Parallel processing with rayon
+cache = ["cached"] # Caching and memoization functionality
+validation = [] # Validation utilities
+logging = [] # Structured logging and diagnostics
+gpu = [] # GPU acceleration abstractions
+cuda = ["gpu"] # CUDA-specific GPU acceleration
+memory_management = [] # Advanced memory management
+memory_metrics = ["memory_management"] # Enhanced memory metrics tracking
+memory_visualization = ["memory_metrics"] # Memory usage visualization
+memory_call_stack = ["memory_metrics"] # Capture call stacks for memory events
+profiling = [] # Performance profiling tools
+random = [] # Random number generation utilities
+types = [] # Type conversion utilities
+ufuncs = [] # Universal Functions (ufuncs) system
+linalg = ["ndarray-linalg"] # Linear algebra with BLAS/LAPACK bindings
+openblas = ["ndarray-linalg/openblas-static"] # Use OpenBLAS backend
+intel-mkl = ["ndarray-linalg/intel-mkl"] # Use Intel MKL backend
+netlib = ["ndarray-linalg/netlib"] # Use Netlib backend
 all = [
-    "simd", "parallel", "cache", "validation", "logging", 
-    "gpu", "memory_management", "profiling", "random", "types",
-    "linalg", "ufuncs"
-]  # Enable all features except backend-specific ones
+  "simd",
+  "parallel",
+  "cache",
+  "validation",
+  "logging",
+  "gpu",
+  "memory_management",
+  "profiling",
+  "random",
+  "types",
+  "linalg",
+  "ufuncs",
+] # Enable all features except backend-specific ones
 
 [[example]]
 name = "gpu_example"
@@ -100,7 +109,13 @@ required-features = ["types"]
 [[example]]
 name = "integrated_features"
 path = "examples/integrated_features.rs"
-required-features = ["logging", "profiling", "random", "memory_management", "types"]
+required-features = [
+  "logging",
+  "profiling",
+  "random",
+  "memory_management",
+  "types",
+]
 
 [[example]]
 name = "memory_metrics_example"

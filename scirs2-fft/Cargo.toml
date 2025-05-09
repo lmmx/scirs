@@ -18,17 +18,15 @@ parallel = []
 
 [dependencies]
 # Core dependencies
-ndarray = { version = "0.16.1", features = ["serde", "rayon"] }
-num-traits = "0.2.19"
-num-complex = "0.4.6"
-thiserror = "1.0.69"
-scirs2-core = { path = "../scirs2-core", version = "0.1.0-alpha.2", features = ["simd", "parallel"] }
-rayon = "1.10.0"
-
-# FFT specific dependencies
-rustfft = "6.2.0"
-rand = "0.9.0"
+ndarray = { workspace = true, features = ["serde", "rayon"] }
+num-traits.workspace = true
+num-complex.workspace = true
+thiserror.workspace = true
+scirs2-core = { workspace = true, features = ["simd", "parallel"] }
+rayon.workspace = true
+rustfft.workspace = true
+rand.workspace = true
 
 [dev-dependencies]
-approx = "0.5.1"
-criterion = "0.5.1"
+approx.workspace = true
+criterion.workspace = true

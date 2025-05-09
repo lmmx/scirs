@@ -11,11 +11,11 @@ categories = ["science", "mathematics", "algorithms"]
 
 [dependencies]
 # Core dependencies
-ndarray = { version = "0.16.1", features = ["serde", "rayon"] }
-num-traits = "0.2.19"
-num-complex = "0.4.6"
-thiserror = "2.0.12"
+ndarray = { workspace = true, features = ["serde", "rayon"] }
+num-traits.workspace = true
+num-complex.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
-approx = "0.5.1"
-criterion = "0.5.1"
+approx.workspace = true
+criterion.workspace = true
