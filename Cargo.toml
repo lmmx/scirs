@@ -78,7 +78,7 @@ ureq = "2.9"
 
 # Common dependencies for specific modules
 nalgebra = "0.33.2"
-ndarray-linalg = { version = "0.17.0", features = ["openblas-static"] }
+ndarray-linalg = { version = "0.17.0", default-features = false }
 rustfft = "6.2.0"
 argmin = "0.10.0"
 sprs = "0.11.3"
@@ -128,11 +128,11 @@ statrs = "0.16.0"
 petgraph = "0.6"
 
 # BLAS specific - these are feature-gated in modules
-blas = "0.23.0"
+blas = { version = "0.23.0", default-features = false }
 blas-src = { version = "0.8", default-features = false }
 intel-mkl-src = { version = "0.8.1", default-features = false }
 cblas-sys = { version = "0.1.4", default-features = false }
-openblas-src = "0.10.11"
+openblas-src = { version = "0.10.11", default-features = false }
 
 # HTTP clients
 reqwest = { version = "0.11", features = ["blocking", "json"] }

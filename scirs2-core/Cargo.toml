@@ -16,7 +16,6 @@ num-traits.workspace = true
 num-complex.workspace = true
 thiserror.workspace = true
 once_cell.workspace = true
-cached = { workspace = true, optional = true }                # Memoization and caching
 chrono.workspace = true
 rand.workspace = true
 rand_distr.workspace = true
@@ -24,11 +23,12 @@ serde.workspace = true                                        # Serialization fo
 serde_json.workspace = true                                   # JSON serialization for memory metrics
 
 # Feature-gated dependencies
-wide = { workspace = true, optional = true }  # SIMD acceleration
-rayon = { workspace = true, optional = true } # Parallel processing
+cached = { workspace = true, optional = true } # Memoization and caching
+wide = { workspace = true, optional = true }   # SIMD acceleration
+rayon = { workspace = true, optional = true }  # Parallel processing
 
 # BLAS/LAPACK dependencies for linear algebra operations
-ndarray-linalg = { workspace = true, optional = true } # LAPACK bindings for ndarray
+ndarray-linalg = { workspace = true, features = ["openblas-static"], optional = true } # LAPACK bindings for ndarray
 
 [dev-dependencies]
 approx.workspace = true
