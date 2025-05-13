@@ -98,13 +98,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for FeatureAlignme
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }
@@ -263,13 +263,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for CrossModalAtte
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }
@@ -361,13 +361,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for FiLMModule<F> 
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }
@@ -469,13 +469,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for BilinearFusion
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }
@@ -869,13 +869,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for FeatureFusion<
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Fusion operation not implemented".to_string(),
         ))
     }

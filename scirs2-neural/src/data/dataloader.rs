@@ -89,6 +89,11 @@ impl<
         }
     }
 
+    /// Check if the dataloader is empty
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Get the next batch from the dataset
     pub fn next_batch(&mut self) -> Option<Result<(Array<F, IxDyn>, Array<F, IxDyn>)>> {
         if self.position >= self.dataset.len() {

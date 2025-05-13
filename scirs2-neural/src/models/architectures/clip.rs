@@ -179,13 +179,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync + 'static> Layer<F> for CLIP
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(Error::NotImplemented(
+        Err(Error::NotImplementedError(
             "CLIPTextEncoder backward not implemented".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(Error::NotImplemented(
+        Err(Error::NotImplementedError(
             "CLIPTextEncoder update not implemented".to_string(),
         ))
     }
@@ -272,13 +272,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync + 'static> Layer<F> for CLIP
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(Error::NotImplemented(
+        Err(Error::NotImplementedError(
             "CLIPVisionEncoder backward not implemented".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(Error::NotImplemented(
+        Err(Error::NotImplementedError(
             "CLIPVisionEncoder update not implemented".to_string(),
         ))
     }
@@ -497,13 +497,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync + 'static> Layer<F> for CLIP
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(Error::NotImplemented(
+        Err(Error::NotImplementedError(
             "CLIP backward not implemented".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(Error::NotImplemented(
+        Err(Error::NotImplementedError(
             "CLIP update not implemented".to_string(),
         ))
     }

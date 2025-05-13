@@ -20,14 +20,14 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scirs2-text = "0.1.0-alpha.2"
+scirs2-text = "0.1.0-alpha.3"
 ```
 
 To enable optional features for integration with popular NLP libraries:
 
 ```toml
 [dependencies]
-scirs2-text = { version = "0.1.0-alpha.2", features = ["tokenizers", "wordpiece"] }
+scirs2-text = { version = "0.1.0-alpha.3", features = ["tokenizers", "wordpiece"] }
 ```
 
 ## Usage

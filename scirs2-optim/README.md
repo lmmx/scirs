@@ -19,14 +19,14 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scirs2-optim = "0.1.0-alpha.2"
+scirs2-optim = "0.1.0-alpha.3"
 ```
 
 To enable optimizations:
 
 ```toml
 [dependencies]
-scirs2-optim = { version = "0.1.0-alpha.2", features = ["parallel"] }
+scirs2-optim = { version = "0.1.0-alpha.3", features = ["parallel"] }
 ```
 
 ## Usage

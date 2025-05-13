@@ -336,13 +336,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for Attention<F> {
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Backward pass for Attention is not implemented yet".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Update for Attention is not implemented yet".to_string(),
         ))
     }
@@ -612,7 +612,7 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for Seq2SeqEncoder
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Not implemented yet".to_string(),
         ))
     }
@@ -626,7 +626,7 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for Seq2SeqEncoder
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Not implemented yet".to_string(),
         ))
     }
@@ -983,13 +983,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for Seq2SeqDecoder
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Not implemented yet".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Not implemented yet".to_string(),
         ))
     }
@@ -1282,13 +1282,13 @@ impl<F: Float + Debug + ScalarOperand + Send + Sync> Layer<F> for Seq2Seq<F> {
         _input: &Array<F, IxDyn>,
         _grad_output: &Array<F, IxDyn>,
     ) -> Result<Array<F, IxDyn>> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Not implemented yet".to_string(),
         ))
     }
 
     fn update(&mut self, _learning_rate: F) -> Result<()> {
-        Err(NeuralError::NotImplemented(
+        Err(NeuralError::NotImplementedError(
             "Not implemented yet".to_string(),
         ))
     }

@@ -1,6 +1,6 @@
 [package]
 name = "scirs2-special"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2021"
 authors = ["SciRS2 Team"]
 description = "Special functions module for SciRS2"
