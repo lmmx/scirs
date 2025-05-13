@@ -28,9 +28,9 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scirs2-fft = "0.1.0-alpha.2"
+scirs2-fft = "0.1.0-alpha.3"
 # Optional: Enable parallel processing
-scirs2-fft = { version = "0.1.0-alpha.2", features = ["parallel"] }
+scirs2-fft = { version = "0.1.0-alpha.3", features = ["parallel"] }
 ```
 
 Basic usage examples:

@@ -34,7 +34,7 @@ Add scirs2-linalg to your Cargo.toml:
 
 ```toml
 [dependencies]
-scirs2-linalg = "0.1.0-alpha.2"
+scirs2-linalg = "0.1.0-alpha.3"
 ndarray = "0.16.1"
 ```
 

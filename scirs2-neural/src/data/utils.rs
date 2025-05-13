@@ -166,7 +166,7 @@ impl KFold {
         let mut result = Vec::with_capacity(self.n_splits);
         let mut current = 0;
 
-        for (_fold, &fold_size) in fold_sizes_updated.iter().enumerate() {
+        for &fold_size in fold_sizes_updated.iter() {
             let start = current;
             let end = current + fold_size;
 
@@ -192,7 +192,7 @@ pub fn create_batches<F: Float + Debug + ScalarOperand>(
     shuffle: bool,
 ) -> Vec<(Array<F, IxDyn>, Array<F, IxDyn>)> {
     let n_samples = x.shape()[0];
-    let n_batches = (n_samples + batch_size - 1) / batch_size; // Ceiling division
+    let n_batches = n_samples.div_ceil(batch_size); // Ceiling division
 
     // Create indices
     let mut indices: Vec<usize> = (0..n_samples).collect();
